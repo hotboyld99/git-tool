@@ -6,7 +6,8 @@ const PADDING = 6
 const laneX = (lane: number): number => PADDING + lane * LANE_WIDTH + LANE_WIDTH / 2
 
 /** Draws one row of the commit graph: its edge segments and the commit node. */
-export function GraphCanvas({ node, width, height }: { node: GraphNode; width: number; height: number }) {
+/** `highlight` (hovered row) thickens the lines touching the node and enlarges it. */
+export function GraphCanvas({ node, width, height, highlight }: { node: GraphNode; width: number; height: number; highlight?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -25,6 +26,7 @@ export function GraphCanvas({ node, width, height }: { node: GraphNode; width: n
       const x1 = laneX(edge.fromLane)
       const x2 = laneX(edge.toLane)
       ctx.strokeStyle = edge.color
+      ctx.lineWidth = highlight && edge.part !== 'full' ? 3.5 : 2
       ctx.beginPath()
       if (edge.part === 'full') {
         ctx.moveTo(x1, 0)
@@ -44,13 +46,13 @@ export function GraphCanvas({ node, width, height }: { node: GraphNode; width: n
     }
 
     ctx.beginPath()
-    ctx.arc(laneX(node.lane), mid, node.isMerge ? 3.5 : 5, 0, Math.PI * 2)
+    ctx.arc(laneX(node.lane), mid, (node.isMerge ? 3.5 : 5) + (highlight ? 1.5 : 0), 0, Math.PI * 2)
     ctx.fillStyle = node.color
     ctx.fill()
     ctx.lineWidth = 2
-    ctx.strokeStyle = '#16191d'
+    ctx.strokeStyle = highlight ? '#ffffff' : '#16191d'
     ctx.stroke()
-  }, [node, width, height])
+  }, [node, width, height, highlight])
 
   return <canvas ref={ref} className="shrink-0" style={{ width, height }} />
 }

@@ -97,3 +97,11 @@ export function computeGraph(commits: GitCommit[], remotes: string[] = []): Grap
   }
   return { nodes, width }
 }
+
+/** Search/author filtered results are not a closed history (parents are missing), so they are drawn without lanes. */
+export function flatGraph(commits: GitCommit[]): Graph {
+  return {
+    nodes: commits.map((c) => ({ commitHash: c.hash, lane: 0, color: PALETTE[0], isMerge: c.parents.length > 1, edges: [] })),
+    width: 1
+  }
+}

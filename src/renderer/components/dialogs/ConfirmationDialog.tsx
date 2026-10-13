@@ -7,6 +7,8 @@ export function ConfirmationDialog({ dialog }: { dialog: Extract<Dialog, { type:
       title={dialog.title}
       confirmLabel={dialog.confirmLabel}
       danger={dialog.danger}
+      // destructive confirmations focus Cancel so a stray Enter never confirms them
+      initialFocus={dialog.danger ? 'cancel' : 'confirm'}
       onConfirm={() => {
         closeDialog()
         dialog.onConfirm()

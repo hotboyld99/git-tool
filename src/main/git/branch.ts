@@ -1,4 +1,4 @@
-import type { GitBranch } from '../../shared/types'
+import type { GitBranch, GitTag } from '../../shared/types'
 
 const FIELDS = ['%(refname)', '%(refname:short)', '%(objectname)', '%(HEAD)', '%(upstream:short)', '%(upstream:track,nobracket)', '%(symref)']
 export const BRANCH_ARGS = ['for-each-ref', `--format=${FIELDS.join('%00')}`, 'refs/heads', 'refs/remotes']
@@ -22,4 +22,18 @@ export function parseBranches(output: string): GitBranch[] {
     })
   }
   return branches
+}
+
+const TAG_FIELDS = ['%(refname:short)', '%(objectname)', '%(*objectname)', '%(contents:subject)']
+export const TAG_ARGS = ['for-each-ref', '--sort=-creatordate', `--format=${TAG_FIELDS.join('%00')}`, 'refs/tags']
+
+/** Parses TAG_ARGS output; annotated tags point at a tag object, `*objectname` is the commit. */
+export function parseTags(output: string): GitTag[] {
+  return output
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const [name, object, peeled, message] = line.split('\0')
+      return { name, hash: peeled || object, message: peeled ? message || undefined : undefined }
+    })
 }

@@ -26,7 +26,7 @@ export function DiffViewer({ id, file }: { id: RepositoryId; file: SelectedFile 
     () =>
       file.source === 'commit'
         ? { kind: 'commit', hash: file.hash, path: file.path, ignoreWhitespace }
-        : { kind: 'working', path: file.path, staged: file.staged, untracked: file.untracked, ignoreWhitespace },
+        : { kind: 'working', path: file.path, staged: file.staged, untracked: file.untracked, conflicted: file.conflicted, ignoreWhitespace },
     [file, ignoreWhitespace]
   )
   // working-tree diffs follow status refreshes (file watcher); commit diffs never change
@@ -51,7 +51,9 @@ export function DiffViewer({ id, file }: { id: RepositoryId; file: SelectedFile 
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-line bg-panel px-3">
         <span className="min-w-0 flex-1 truncate font-mono" title={file.path}>
           {file.path}
-          {file.source === 'working' && <span className="ml-2 font-sans text-faint">{file.staged ? 'staged' : 'unstaged'}</span>}
+          {file.source === 'working' && (
+            <span className="ml-2 font-sans text-faint">{file.conflicted ? 'conflicted (vs HEAD)' : file.staged ? 'staged' : 'unstaged'}</span>
+          )}
         </span>
         <div className="flex rounded border border-line p-0.5">
           <button className={toggle(diffMode === 'unified')} onClick={() => setUi({ diffMode: 'unified' })}>
@@ -83,7 +85,7 @@ export function DiffViewer({ id, file }: { id: RepositoryId; file: SelectedFile 
             <button
               className={iconButton}
               title="Stage file"
-              onClick={() => void actions.stage(id, [file.path]).then((r) => r.ok && selectFile(id, { ...file, staged: true, untracked: false }))}
+              onClick={() => void actions.stage(id, [file.path]).then((r) => r.ok && selectFile(id, { ...file, staged: true, untracked: false, conflicted: false }))}
             >
               <Plus size={14} />
             </button>

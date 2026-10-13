@@ -24,7 +24,16 @@ function fields(line: string, count: number): string[] {
 
 /** Parses `git status --porcelain=v2 -z --branch`. */
 export function parseStatus(output: string): GitStatus {
-  const status: GitStatus = { branch: null, head: '', ahead: 0, behind: 0, stagedFiles: [], unstagedFiles: [], conflictedFiles: [] }
+  const status: GitStatus = {
+    branch: null,
+    head: '',
+    ahead: 0,
+    behind: 0,
+    stagedFiles: [],
+    unstagedFiles: [],
+    conflictedFiles: [],
+    operation: null
+  }
   const entries = output.split('\0')
 
   for (let i = 0; i < entries.length; i++) {

@@ -1,8 +1,23 @@
-import type { ChangedFile, DiffRequest, FileDiff, GitBranch, GitCommit, GitRemote, GitStash, GitStatus } from '../../shared/types'
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import type {
+  ChangedFile,
+  DiffRequest,
+  FileDiff,
+  GitBranch,
+  GitCommit,
+  GitRemote,
+  GitStash,
+  GitStatus,
+  GitTag,
+  LogOptions,
+  RepoOperation,
+  ResetMode
+} from '../../shared/types'
 import { GitCommandError, runGit } from '../git/executor'
 import { STATUS_ARGS, parseStatus } from '../git/status'
-import { BRANCH_ARGS, parseBranches } from '../git/branch'
-import { logArgs, parseLog } from '../git/log'
+import { BRANCH_ARGS, TAG_ARGS, parseBranches, parseTags } from '../git/branch'
+import { logArgs, parseLog, showArgs } from '../git/log'
 import { parseDiff } from '../git/diff'
 import { commitFilesArgs, parseNameStatus } from '../git/commit'
 import { parseRemotes } from '../git/remote'
@@ -25,6 +40,15 @@ function assertStash(ref: string): string {
   return ref
 }
 
+// marker file in the git dir -> operation in progress (checked in this order)
+const OPERATION_MARKERS: [string, RepoOperation][] = [
+  ['rebase-merge', 'rebase'],
+  ['rebase-apply', 'rebase'],
+  ['CHERRY_PICK_HEAD', 'cherry-pick'],
+  ['REVERT_HEAD', 'revert'],
+  ['MERGE_HEAD', 'merge']
+]
+
 function assertFiles(files: string[]): string[] {
   if (files.length === 0) throw new Error('No files selected.')
   return files
@@ -43,9 +67,25 @@ async function withFallback<T>(primary: () => Promise<T>, fallback: () => Promis
 /** All Git commands of the application live here. Methods take an already validated repository path. */
 export class GitService {
   private network = new Map<string, AbortController>()
+  private gitDirs = new Map<string, string>()
 
   async status(repo: string): Promise<GitStatus> {
-    return parseStatus(await runGit(repo, STATUS_ARGS))
+    const [output, gitDir] = await Promise.all([runGit(repo, STATUS_ARGS), this.gitDir(repo)])
+    const status = parseStatus(output)
+    status.operation = OPERATION_MARKERS.find(([file]) => existsSync(join(gitDir, file)))?.[1] ?? null
+    const messageFile = join(gitDir, 'MERGE_MSG')
+    if (status.operation && existsSync(messageFile)) {
+      status.mergeMessage = readFileSync(messageFile, 'utf8')
+        .split('\n')
+        .filter((l) => !l.startsWith('#'))
+        .join('\n')
+        .trim()
+    }
+    return status
+  }
+
+  async getTags(repo: string): Promise<GitTag[]> {
+    return parseTags(await runGit(repo, TAG_ARGS))
   }
 
   async getBranches(repo: string): Promise<GitBranch[]> {
@@ -56,9 +96,17 @@ export class GitService {
     return parseRemotes(await runGit(repo, ['remote', '-v']))
   }
 
-  async getLog(repo: string, options: { skip: number; limit: number }): Promise<GitCommit[]> {
+  async getLog(repo: string, options: LogOptions): Promise<GitCommit[]> {
+    if (options.ref) assertRef(options.ref)
     if (await this.isUnborn(repo)) return []
-    return parseLog(await runGit(repo, logArgs(options.skip, options.limit)))
+    const commits = parseLog(await runGit(repo, logArgs(options)))
+    // a search that looks like a hash also finds that commit
+    const search = options.search?.trim() ?? ''
+    if (options.skip === 0 && /^[0-9a-f]{4,64}$/i.test(search)) {
+      const [match] = parseLog(await runGit(repo, showArgs(`${search}^{commit}`)).catch(() => ''))
+      if (match && !commits.some((c) => c.hash === match.hash)) commits.unshift(match)
+    }
+    return commits
   }
 
   async getDiff(repo: string, req: DiffRequest): Promise<FileDiff> {
@@ -70,7 +118,9 @@ export class GitService {
       // `--no-index` exits 1 when files differ; /dev/null is understood by Git on every OS
       return parseDiff(await runGit(repo, ['diff', '--no-index', ...ws, '--', '/dev/null', req.path], { okExitCodes: [0, 1] }))
     }
-    return parseDiff(await runGit(repo, ['diff', ...(req.staged ? ['--cached'] : []), ...ws, '--', req.path]))
+    // unmerged files: show the working copy (with conflict markers) against HEAD
+    const base = req.conflicted ? ['HEAD'] : req.staged ? ['--cached'] : []
+    return parseDiff(await runGit(repo, ['diff', ...base, ...ws, '--', req.path]))
   }
 
   async getCommitFiles(repo: string, hash: string): Promise<ChangedFile[]> {
@@ -171,6 +221,51 @@ export class GitService {
     await runGit(repo, ['merge', '--no-edit', assertRef(branch)], { timeout: 0 })
   }
 
+  async cherryPick(repo: string, hash: string): Promise<void> {
+    await runGit(repo, ['cherry-pick', ...(await this.mainlineArgs(repo, hash)), hash], { timeout: 0 })
+  }
+
+  async revert(repo: string, hash: string): Promise<void> {
+    await runGit(repo, ['revert', '--no-edit', ...(await this.mainlineArgs(repo, hash)), hash], { timeout: 0 })
+  }
+
+  /** `hard` discards working tree changes: callers must confirm with the user first. */
+  async reset(repo: string, hash: string, mode: ResetMode): Promise<void> {
+    if (!['soft', 'mixed', 'hard'].includes(mode)) throw new Error(`Invalid reset mode: ${mode}`)
+    await runGit(repo, ['reset', `--${mode}`, assertHash(hash)])
+  }
+
+  async abortOperation(repo: string): Promise<void> {
+    const { operation } = await this.status(repo)
+    if (!operation) throw new Error('No merge, cherry-pick, revert or rebase is in progress.')
+    await runGit(repo, [operation, '--abort'])
+  }
+
+  /** Takes our/their whole version of conflicted files and marks them resolved. */
+  async resolveConflict(repo: string, files: string[], side: 'ours' | 'theirs'): Promise<void> {
+    if (side !== 'ours' && side !== 'theirs') throw new Error(`Invalid side: ${side}`)
+    assertFiles(files)
+    await runGit(repo, ['checkout', `--${side}`, '--', ...files])
+    await runGit(repo, ['add', '--', ...files])
+  }
+
+  async createTag(repo: string, name: string, hash: string, message: string): Promise<void> {
+    await runGit(repo, ['check-ref-format', `refs/tags/${assertRef(name)}`]).catch(() => {
+      throw new Error(`"${name}" is not a valid tag name.`)
+    })
+    const annotated = message.trim() ? ['-a', '-m', message.trim()] : []
+    await runGit(repo, ['tag', ...annotated, name, assertHash(hash)])
+  }
+
+  async deleteTag(repo: string, name: string): Promise<void> {
+    await runGit(repo, ['tag', '-d', assertRef(name)])
+  }
+
+  async pushTag(repo: string, name: string, onOutput: Output): Promise<void> {
+    const remote = await this.defaultRemote(repo)
+    return this.runNetwork(repo, ['push', '--progress', remote, `refs/tags/${assertRef(name)}`], onOutput)
+  }
+
   fetch(repo: string, onOutput: Output): Promise<void> {
     return this.runNetwork(repo, ['fetch', '--all', '--prune', '--progress'], onOutput)
   }
@@ -182,9 +277,7 @@ export class GitService {
   async push(repo: string, setUpstream: boolean, onOutput: Output): Promise<void> {
     if (!setUpstream) return this.runNetwork(repo, ['push', '--progress'], onOutput)
     const branch = (await runGit(repo, ['symbolic-ref', '--short', 'HEAD'])).trim()
-    const remotes = await this.getRemotes(repo)
-    const remote = remotes.find((r) => r.name === 'origin')?.name ?? remotes[0]?.name
-    if (!remote) throw new Error('This repository has no remote configured.')
+    const remote = await this.defaultRemote(repo)
     return this.runNetwork(repo, ['push', '--progress', '-u', remote, branch], onOutput)
   }
 
@@ -213,6 +306,29 @@ export class GitService {
 
   async dropStash(repo: string, ref: string): Promise<void> {
     await runGit(repo, ['stash', 'drop', assertStash(ref)])
+  }
+
+  private async defaultRemote(repo: string): Promise<string> {
+    const remotes = await this.getRemotes(repo)
+    const remote = remotes.find((r) => r.name === 'origin')?.name ?? remotes[0]?.name
+    if (!remote) throw new Error('This repository has no remote configured.')
+    return remote
+  }
+
+  /** Merge commits need `-m 1` (relative to the first parent) for cherry-pick / revert. */
+  private async mainlineArgs(repo: string, hash: string): Promise<string[]> {
+    const parents = (await runGit(repo, ['rev-list', '--parents', '-n1', assertHash(hash)])).trim().split(' ')
+    return parents.length > 2 ? ['-m', '1'] : []
+  }
+
+  /** Absolute git dir (differs from <repo>/.git for worktrees and submodules). */
+  private async gitDir(repo: string): Promise<string> {
+    let dir = this.gitDirs.get(repo)
+    if (!dir) {
+      dir = (await runGit(repo, ['rev-parse', '--absolute-git-dir'])).trim()
+      this.gitDirs.set(repo, dir)
+    }
+    return dir
   }
 
   private async isUnborn(repo: string): Promise<boolean> {

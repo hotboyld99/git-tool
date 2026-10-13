@@ -5,6 +5,7 @@ import type {
   GitRemote,
   GitStash,
   GitStatus,
+  GitTag,
   RepoChangedEvent,
   RepositoryId,
   RepositoryInfo,
@@ -15,8 +16,15 @@ import { showError } from './ui.store'
 export type Selection = { type: 'changes' } | { type: 'commit'; hash: string } | { type: 'stash'; ref: string; hash: string }
 
 export type SelectedFile =
-  | { source: 'working'; path: string; staged: boolean; untracked: boolean }
+  | { source: 'working'; path: string; staged: boolean; untracked: boolean; conflicted?: boolean }
   | { source: 'commit'; hash: string; path: string }
+
+export interface HistoryFilter {
+  search: string
+  author: string
+  /** '' = all branches */
+  ref: string
+}
 
 export type LoadingKey = 'status' | 'log' | 'fetching' | 'pulling' | 'pushing' | 'committing'
 
@@ -26,8 +34,10 @@ export interface RepositoryState {
   branches: GitBranch[]
   remotes: GitRemote[]
   stashes: GitStash[]
+  tags: GitTag[]
   commits: GitCommit[]
   hasMoreCommits: boolean
+  historyFilter: HistoryFilter
   selection: Selection
   selectedFile: SelectedFile | null
   commitMessage: string
@@ -44,6 +54,7 @@ interface RepositoriesStore {
 }
 
 export const PAGE_SIZE = 100
+const MAX_PAGE_SIZE = 5000
 const MAX_RECENT = 10
 
 export const useRepos = create<RepositoriesStore>(() => ({ order: [], repos: {}, activeId: null, recent: [] }))
@@ -93,16 +104,25 @@ export async function refreshWorkingTree(id: RepositoryId, followHead = true): P
   if (!status) return
   const previous = getRepo(id)?.status
   patchRepo(id, { status })
+  // a merge / cherry-pick / revert just stopped on conflicts: offer Git's prepared message
+  if (status.operation && !previous?.operation && status.mergeMessage && !getRepo(id)?.commitMessage) {
+    patchRepo(id, { commitMessage: status.mergeMessage })
+  }
   if (followHead && previous && previous.head !== status.head) await refreshHistory(id)
 }
 
 export async function refreshRefs(id: RepositoryId): Promise<void> {
-  const [branches, remotes] = await Promise.all([
+  const [branches, remotes, tags] = await Promise.all([
     load(id, 'branches', window.git.branches(id)),
-    load(id, 'remotes', window.git.remotes(id))
+    load(id, 'remotes', window.git.remotes(id)),
+    load(id, 'tags', window.git.tags(id))
   ])
   if (branches) patchRepo(id, { branches })
+  // the branch the history was filtered on was deleted: show all branches again
+  const ref = getRepo(id)?.historyFilter.ref
+  if (branches && ref && !branches.some((b) => b.name === ref)) setHistoryFilter(id, { ref: '' })
   if (remotes) patchRepo(id, { remotes })
+  if (tags) patchRepo(id, { tags })
 }
 
 export async function refreshStashes(id: RepositoryId): Promise<void> {
@@ -110,11 +130,15 @@ export async function refreshStashes(id: RepositoryId): Promise<void> {
   if (stashes) patchRepo(id, { stashes })
 }
 
-/** Reloads every page loaded so far, so the scroll position and selection survive. */
-export async function refreshHistory(id: RepositoryId): Promise<void> {
-  const limit = Math.max(PAGE_SIZE, getRepo(id)?.commits.length ?? 0)
+const filterOptions = ({ search, author, ref }: HistoryFilter) => ({ search: search.trim(), author: author.trim(), ref })
+
+/** Reloads every page loaded so far (so scroll position and selection survive), or only the first page after `reset`. */
+export async function refreshHistory(id: RepositoryId, reset = false): Promise<void> {
+  const repo = getRepo(id)
+  if (!repo) return
+  const limit = reset ? PAGE_SIZE : Math.min(50_000, Math.max(PAGE_SIZE, repo.commits.length))
   setLoading(id, 'log', true)
-  const commits = await load(id, 'log', window.git.log(id, { skip: 0, limit }))
+  const commits = await load(id, 'log', window.git.log(id, { skip: 0, limit, ...filterOptions(repo.historyFilter) }))
   setLoading(id, 'log', false)
   if (commits) patchRepo(id, { commits, hasMoreCommits: commits.length === limit })
 }
@@ -122,14 +146,22 @@ export async function refreshHistory(id: RepositoryId): Promise<void> {
 export async function loadMoreHistory(id: RepositoryId): Promise<void> {
   const repo = getRepo(id)
   if (!repo || repo.loading.log || !repo.hasMoreCommits) return
+  // Pages double in size: without a commit-graph file `git log --date-order` walks the whole history on every
+  // call, so the number of calls (not their size) is what makes deep scrolling slow on large repositories.
+  const limit = Math.min(MAX_PAGE_SIZE, Math.max(PAGE_SIZE, repo.commits.length))
   setLoading(id, 'log', true)
-  const more = await load(id, 'log', window.git.log(id, { skip: repo.commits.length, limit: PAGE_SIZE }))
+  const more = await load(id, 'log', window.git.log(id, { skip: repo.commits.length, limit, ...filterOptions(repo.historyFilter) }))
   setLoading(id, 'log', false)
   if (!more) return
   patchRepo(id, (r) => {
     const known = new Set(r.commits.map((c) => c.hash))
-    return { commits: [...r.commits, ...more.filter((c) => !known.has(c.hash))], hasMoreCommits: more.length === PAGE_SIZE }
+    return { commits: [...r.commits, ...more.filter((c) => !known.has(c.hash))], hasMoreCommits: more.length === limit }
   })
+}
+
+export function setHistoryFilter(id: RepositoryId, filter: Partial<HistoryFilter>): void {
+  patchRepo(id, (r) => ({ historyFilter: { ...r.historyFilter, ...filter } }))
+  void refreshHistory(id, true)
 }
 
 export async function refreshAll(id: RepositoryId): Promise<void> {
@@ -160,8 +192,10 @@ function emptyRepo(info: RepositoryInfo): RepositoryState {
     branches: [],
     remotes: [],
     stashes: [],
+    tags: [],
     commits: [],
     hasMoreCommits: false,
+    historyFilter: { search: '', author: '', ref: '' },
     selection: { type: 'changes' },
     selectedFile: null,
     commitMessage: '',

@@ -15,6 +15,9 @@ export interface GitFileStatus {
   staged: boolean
 }
 
+/** multi-step operation waiting for the user (conflicts to resolve, then commit or abort) */
+export type RepoOperation = 'merge' | 'cherry-pick' | 'revert' | 'rebase'
+
 export interface GitStatus {
   /** null when HEAD is detached */
   branch: string | null
@@ -26,6 +29,9 @@ export interface GitStatus {
   stagedFiles: GitFileStatus[]
   unstagedFiles: GitFileStatus[]
   conflictedFiles: GitFileStatus[]
+  operation: RepoOperation | null
+  /** prepared commit message (.git/MERGE_MSG) of a merge / cherry-pick / revert in progress */
+  mergeMessage?: string
 }
 
 export interface GitBranch {
@@ -39,6 +45,13 @@ export interface GitBranch {
   upstream?: string
   /** e.g. "ahead 1, behind 2" */
   track?: string
+}
+
+export interface GitTag {
+  name: string
+  /** commit the tag points to (annotated tags are peeled) */
+  hash: string
+  message?: string
 }
 
 export interface GitRemote {
@@ -74,8 +87,20 @@ export interface ChangedFile {
   status: FileStatusKind
 }
 
+export interface LogOptions {
+  skip: number
+  limit: number
+  /** message text or commit hash */
+  search?: string
+  author?: string
+  /** only history reachable from this branch/ref (default: all refs) */
+  ref?: string
+}
+
+export type ResetMode = 'soft' | 'mixed' | 'hard'
+
 export type DiffRequest =
-  | { kind: 'working'; path: string; staged: boolean; untracked?: boolean; ignoreWhitespace?: boolean }
+  | { kind: 'working'; path: string; staged: boolean; untracked?: boolean; conflicted?: boolean; ignoreWhitespace?: boolean }
   | { kind: 'commit'; hash: string; path: string; ignoreWhitespace?: boolean }
 
 export type DiffLineType = 'context' | 'add' | 'del' | 'meta'
@@ -130,7 +155,8 @@ export interface GitApi {
   status(id: RepositoryId): Promise<Result<GitStatus>>
   branches(id: RepositoryId): Promise<Result<GitBranch[]>>
   remotes(id: RepositoryId): Promise<Result<GitRemote[]>>
-  log(id: RepositoryId, options: { skip: number; limit: number }): Promise<Result<GitCommit[]>>
+  log(id: RepositoryId, options: LogOptions): Promise<Result<GitCommit[]>>
+  tags(id: RepositoryId): Promise<Result<GitTag[]>>
   diff(id: RepositoryId, request: DiffRequest): Promise<Result<FileDiff>>
   commitFiles(id: RepositoryId, hash: string): Promise<Result<ChangedFile[]>>
   stage(id: RepositoryId, files: string[]): Promise<Result<void>>
@@ -146,6 +172,14 @@ export interface GitApi {
   createBranch(id: RepositoryId, name: string, startPoint: string | null, checkout: boolean): Promise<Result<void>>
   deleteBranch(id: RepositoryId, name: string, force: boolean): Promise<Result<void>>
   merge(id: RepositoryId, branch: string): Promise<Result<void>>
+  cherryPick(id: RepositoryId, hash: string): Promise<Result<void>>
+  revert(id: RepositoryId, hash: string): Promise<Result<void>>
+  reset(id: RepositoryId, hash: string, mode: ResetMode): Promise<Result<void>>
+  abortOperation(id: RepositoryId): Promise<Result<void>>
+  resolveConflict(id: RepositoryId, files: string[], side: 'ours' | 'theirs'): Promise<Result<void>>
+  createTag(id: RepositoryId, name: string, hash: string, message: string): Promise<Result<void>>
+  deleteTag(id: RepositoryId, name: string): Promise<Result<void>>
+  pushTag(id: RepositoryId, name: string): Promise<Result<void>>
   fetch(id: RepositoryId): Promise<Result<void>>
   pull(id: RepositoryId): Promise<Result<void>>
   push(id: RepositoryId, setUpstream: boolean): Promise<Result<void>>

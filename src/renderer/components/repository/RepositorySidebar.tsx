@@ -3,6 +3,7 @@ import type { RepositoryId } from '../../../shared/types'
 import { select, useRepo } from '../../stores/repository.store'
 import { BranchTree } from '../branches/BranchTree'
 import { StashList } from '../stash/StashList'
+import { TagList } from '../branches/TagList'
 import { SidebarItem, SidebarSection } from './SidebarSection'
 
 export function RepositorySidebar({ id }: { id: RepositoryId }) {
@@ -20,6 +21,7 @@ export function RepositorySidebar({ id }: { id: RepositoryId }) {
         />
       </SidebarSection>
       <BranchTree id={id} />
+      <TagList id={id} />
       <StashList id={id} />
     </div>
   )

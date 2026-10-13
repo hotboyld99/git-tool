@@ -69,6 +69,12 @@ macOS, Windows, Linux. Paths go through `node:path`, Git is spawned directly (no
 - Remote: fetch (`--all --prune`), pull, push with "No upstream configured → Push & Set Upstream",
   streamed progress and cancel
 - Stash: create (with untracked), apply, pop, drop (confirmed), view stash files and diffs
+- Merge conflicts: "merge / cherry-pick / revert in progress" banner with Abort, conflict section with
+  Use Ours / Use Theirs / Mark as Resolved, conflict-marker diff, Git's prepared merge message pre-filled
+- Commit actions: cherry-pick, revert (merge commits use the first parent), reset soft / mixed / hard (hard is
+  clearly marked), create tags (lightweight or annotated), push / delete tags, checkout commit, create branch here
+- History: search by message or hash, author filter, branch filter; keyboard navigation (↑/↓),
+  hover highlighting, selected commit scrolled into view
 - File watching (working tree + `.git/HEAD`, `index`, `refs`) with debounced refresh
 - Operation log with Git output, error toasts with details, resizable panels, keyboard shortcuts
 
@@ -108,6 +114,14 @@ src/
     components/            layout, repository, graph, branches, changes, diff, commit, stash, dialogs
 tests/                     vitest: parsers, graph, GitService against temporary repositories
 ```
+
+### Large repositories
+
+The graph layout is linear (50,000 commits lay out in ~50 ms; covered by a test). History pages start at
+100 commits and double in size while scrolling, because without a commit-graph file `git log --date-order`
+walks the whole history on every call. For very large repositories, let Git maintain one
+(`git commit-graph write --reachable`, or `git maintenance start`): page loads then drop to a few milliseconds.
+The app itself never writes to `.git` except through the Git commands you trigger.
 
 Refreshes are split so cheap operations stay cheap: staging only reruns `git status`; history is reloaded
 only when HEAD or refs move (commit, checkout, merge, pull, fetch, push). Every loaded page is reloaded together,

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { GitFileStatus, RepositoryId, Result } from '../../shared/types'
+import type { GitFileStatus, RepositoryId, ResetMode, Result } from '../../shared/types'
 import {
   getRepo,
   patchRepo,
@@ -198,6 +198,54 @@ export const actions = {
       onConfirm: () => void run(id, `Merge ${branch} into ${current}`, () => window.git.merge(id, branch), { refresh: ['worktree', 'refs', 'history'] })
     })
   },
+
+  cherryPick: (id: RepositoryId, hash: string) =>
+    run(id, `Cherry-pick ${hash.slice(0, 7)}`, () => window.git.cherryPick(id, hash), { refresh: ['worktree', 'refs', 'history'] }),
+
+  revert(id: RepositoryId, hash: string): void {
+    confirm({
+      title: 'Revert commit?',
+      message: `A new commit that undoes ${hash.slice(0, 7)} will be created on the current branch.`,
+      confirmLabel: 'Revert',
+      onConfirm: () => void run(id, `Revert ${hash.slice(0, 7)}`, () => window.git.revert(id, hash), { refresh: ['worktree', 'refs', 'history'] })
+    })
+  },
+
+  reset: (id: RepositoryId, hash: string, mode: ResetMode) =>
+    run(id, `Reset (${mode}) to ${hash.slice(0, 7)}`, () => window.git.reset(id, hash, mode), { refresh: ['worktree', 'refs', 'history'] }),
+
+  abortOperation(id: RepositoryId): void {
+    const operation = getRepo(id)?.status?.operation ?? 'operation'
+    confirm({
+      title: `Abort ${operation}?`,
+      message: `The ${operation} will be stopped and the repository returns to the state before it started. Conflict resolutions made so far are lost.`,
+      confirmLabel: `Abort ${operation}`,
+      danger: true,
+      onConfirm: async () => {
+        const result = await run(id, `Abort ${operation}`, () => window.git.abortOperation(id), { refresh: ['worktree', 'refs', 'history'] })
+        if (result.ok) patchRepo(id, { commitMessage: '' })
+      }
+    })
+  },
+
+  resolveConflict: (id: RepositoryId, path: string, side: 'ours' | 'theirs') =>
+    run(id, `Use ${side} for ${path}`, () => window.git.resolveConflict(id, [path], side), { refresh: ['worktree'] }),
+
+  createTag: (id: RepositoryId, name: string, hash: string, message: string) =>
+    run(id, `Create tag ${name}`, () => window.git.createTag(id, name, hash, message), { refresh: ['refs', 'history'] }),
+
+  deleteTag(id: RepositoryId, name: string): void {
+    confirm({
+      title: 'Delete tag?',
+      message: `Delete local tag "${name}"? Tags already pushed stay on the remote.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: () => void run(id, `Delete tag ${name}`, () => window.git.deleteTag(id, name), { refresh: ['refs', 'history'] })
+    })
+  },
+
+  pushTag: (id: RepositoryId, name: string) =>
+    run(id, `Push tag ${name}`, () => window.git.pushTag(id, name), { flag: 'pushing', refresh: ['refs'] }),
 
   fetch: (id: RepositoryId) => run(id, 'Fetch', () => window.git.fetch(id), { flag: 'fetching', refresh: ['refs', 'history', 'worktree'] }),
 

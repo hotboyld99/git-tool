@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GitCommit } from '../src/shared/types'
-import { computeGraph } from '../src/renderer/utils/graph'
+import { computeGraph, flatGraph } from '../src/renderer/utils/graph'
 import { GitService } from '../src/main/services/git.service'
 import { tempRepo } from './helpers'
 
@@ -34,6 +34,31 @@ describe('computeGraph', () => {
     expect(g.nodes[0].edges.filter((e) => e.type === 'merge').map((e) => e.toLane)).toEqual([1, 2])
     expect(g.nodes[3].lane).toBe(0)
     expect(g.width).toBe(3)
+  })
+})
+
+describe('graph performance', () => {
+  it('lays out 50k commits with a merge every 4 commits quickly', () => {
+    // newest first: merge_i (main_i + feature_i) <- both fork from base_i <- base_i continues to merge_{i+1}
+    const commits: GitCommit[] = []
+    const rounds = 12_500
+    for (let i = 0; i < rounds; i++) {
+      commits.push(c(`merge${i}`, [`main${i}`, `feature${i}`]), c(`main${i}`, [`base${i}`]), c(`feature${i}`, [`base${i}`]))
+      commits.push(c(`base${i}`, i + 1 < rounds ? [`merge${i + 1}`] : []))
+    }
+    const started = performance.now()
+    const g = computeGraph(commits)
+    expect(performance.now() - started).toBeLessThan(1500)
+    expect(g.nodes).toHaveLength(commits.length)
+    expect(g.width).toBe(2)
+  })
+
+  it('draws filtered results without lanes', () => {
+    const g = flatGraph([c('b', ['a']), c('x', ['y', 'z'])])
+    expect(g.nodes.map((n) => [n.lane, n.edges.length, n.isMerge])).toEqual([
+      [0, 0, false],
+      [0, 0, true]
+    ])
   })
 })
 

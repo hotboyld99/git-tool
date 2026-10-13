@@ -15,6 +15,8 @@ export type Dialog =
   | { type: 'confirm'; title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void }
   | { type: 'createBranch'; repoId: RepositoryId; startPoint: string | null; startLabel: string }
   | { type: 'stash'; repoId: RepositoryId }
+  | { type: 'createTag'; repoId: RepositoryId; hash: string; label: string }
+  | { type: 'reset'; repoId: RepositoryId; hash: string; label: string; branch: string }
 
 interface UiState {
   sidebarWidth: number

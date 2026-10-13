@@ -1,4 +1,4 @@
-import { Check, Minus, Plus, Undo2 } from 'lucide-react'
+import { AlertTriangle, ArrowLeftToLine, ArrowRightToLine, Check, Minus, Plus, Undo2 } from 'lucide-react'
 import type { GitFileStatus, RepositoryId } from '../../../shared/types'
 import { selectFile, useRepo } from '../../stores/repository.store'
 import { actions } from '../../stores/git.store'
@@ -8,6 +8,8 @@ import { CommitPanel } from '../commit/CommitPanel'
 import { FileChangeList } from './FileChangeList'
 
 const headerButton = 'rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-hover hover:text-fg'
+
+const OPERATION_LABEL = { merge: 'Merge', 'cherry-pick': 'Cherry-pick', revert: 'Revert', rebase: 'Rebase' }
 
 export function ChangesPanel({ id }: { id: RepositoryId }) {
   const { status, selectedFile } = useRepo(id)
@@ -22,11 +24,25 @@ export function ChangesPanel({ id }: { id: RepositoryId }) {
   const { stagedFiles, unstagedFiles, conflictedFiles } = status
   const total = stagedFiles.length + unstagedFiles.length + conflictedFiles.length
   const isSelected = (f: GitFileStatus): boolean => selectedFile?.source === 'working' && selectedFile.path === f.path && selectedFile.staged === f.staged
-  const show = (f: GitFileStatus): void => selectFile(id, { source: 'working', path: f.path, staged: f.staged, untracked: f.status === 'untracked' })
+  const show = (f: GitFileStatus): void =>
+    selectFile(id, { source: 'working', path: f.path, staged: f.staged, untracked: f.status === 'untracked', conflicted: f.status === 'conflicted' })
   const openFile = (f: GitFileStatus): void => void window.system.openFile(id, f.path)
+  const changeEntries = (f: GitFileStatus): MenuEntry[] => {
+    if (f.status === 'conflicted') {
+      return [
+        { label: 'Use Ours (current branch)', onClick: () => void actions.resolveConflict(id, f.path, 'ours') },
+        { label: 'Use Theirs (incoming)', onClick: () => void actions.resolveConflict(id, f.path, 'theirs') },
+        { label: 'Mark as Resolved', onClick: () => void actions.stage(id, [f.path]) }
+      ]
+    }
+    if (f.staged) return [{ label: 'Unstage', onClick: () => void actions.unstage(id, [f.path]) }]
+    return [
+      { label: 'Stage', onClick: () => void actions.stage(id, [f.path]) },
+      { label: 'Discard Changes…', danger: true, onClick: () => actions.discard(id, f) }
+    ]
+  }
   const fileMenu = (f: GitFileStatus): MenuEntry[] => [
-    f.staged ? { label: 'Unstage', onClick: () => void actions.unstage(id, [f.path]) } : { label: 'Stage', onClick: () => void actions.stage(id, [f.path]) },
-    ...(f.staged || f.status === 'conflicted' ? [] : [{ label: 'Discard Changes…', danger: true, onClick: () => actions.discard(id, f) }]),
+    ...changeEntries(f),
     'separator',
     { label: 'Open File', disabled: f.status === 'deleted', onClick: () => openFile(f) },
     { label: window.system.platform === 'darwin' ? 'Reveal in Finder' : 'Reveal in Explorer', disabled: f.status === 'deleted', onClick: () => void window.system.reveal(id, f.path) },
@@ -41,13 +57,33 @@ export function ChangesPanel({ id }: { id: RepositoryId }) {
           {status.branch && <span className="text-muted"> on {status.branch}</span>}
         </span>
       </div>
+      {status.operation && (
+        <div className="flex items-center gap-2 border-b border-warn/30 bg-warn/10 px-3 py-2 text-warn">
+          <AlertTriangle size={14} className="shrink-0" />
+          <span className="flex-1">
+            {OPERATION_LABEL[status.operation]} in progress —{' '}
+            {status.operation === 'rebase'
+              ? 'continue it from a terminal, or abort.'
+              : conflictedFiles.length > 0
+                ? `resolve ${conflictedFiles.length} conflict${conflictedFiles.length === 1 ? '' : 's'}, then commit.`
+                : 'commit to finish.'}
+          </span>
+          <button className="rounded border border-warn/40 px-2 py-0.5 hover:bg-warn/20" onClick={() => actions.abortOperation(id)}>
+            Abort
+          </button>
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {conflictedFiles.length > 0 && (
           <FileChangeList
             title="Merge Conflicts"
             tone="danger"
             files={conflictedFiles}
-            actions={[{ icon: Check, title: 'Mark as resolved (stage)', onClick: (f) => void actions.stage(id, [f.path]) }]}
+            actions={[
+              { icon: ArrowLeftToLine, title: 'Use ours (current branch)', onClick: (f) => void actions.resolveConflict(id, f.path, 'ours') },
+              { icon: ArrowRightToLine, title: 'Use theirs (incoming)', onClick: (f) => void actions.resolveConflict(id, f.path, 'theirs') },
+              { icon: Check, title: 'Mark as resolved (stage)', onClick: (f) => void actions.stage(id, [f.path]) }
+            ]}
             isSelected={isSelected}
             onSelect={show}
             onOpen={openFile}
