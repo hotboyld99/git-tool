@@ -8,6 +8,7 @@ import { parseNameStatus } from '../src/main/git/commit'
 import { parseDiff } from '../src/main/git/diff'
 import { changeScope } from '../src/main/services/filesystem.service'
 import { splitRows } from '../src/renderer/utils/diff'
+import { errorSummary } from '../src/renderer/utils/format'
 
 describe('parseStatus', () => {
   it('parses branch info and every entry type', () => {
@@ -128,5 +129,13 @@ describe('other parsers', () => {
     expect(changeScope('.git/refs/heads/main')).toBe('refs')
     expect(changeScope('.git/objects/ab/cdef')).toBeNull()
     expect(changeScope('.git/index.lock')).toBeNull()
+  })
+})
+
+describe('errorSummary', () => {
+  it('picks the error line, also after carriage-return progress output', () => {
+    expect(errorSummary('Rebasing (1/1)\rerror: could not apply c7589e5... msg\nhint: resolve\nCONFLICT (add/add): x')).toBe('could not apply c7589e5... msg')
+    expect(errorSummary('To origin\n ! [rejected]        main -> main (fetch first)\nhint: pull first')).toBe('! [rejected]        main -> main (fetch first)')
+    expect(errorSummary('fatal: not a git repository')).toBe('not a git repository')
   })
 })

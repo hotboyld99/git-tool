@@ -28,12 +28,17 @@ const git: GitApi = {
   discard: invoke('git:discard'),
   deleteUntracked: invoke('git:deleteUntracked'),
   commit: invoke('git:commit'),
+  headMessage: invoke('git:headMessage'),
+  blame: invoke('git:blame'),
   checkout: invoke('git:checkout'),
   checkoutRemote: invoke('git:checkoutRemote'),
   checkoutCommit: invoke('git:checkoutCommit'),
   createBranch: invoke('git:createBranch'),
   deleteBranch: invoke('git:deleteBranch'),
   merge: invoke('git:merge'),
+  rebase: invoke('git:rebase'),
+  rebaseContinue: invoke('git:rebaseContinue'),
+  rebaseSkip: invoke('git:rebaseSkip'),
   cherryPick: invoke('git:cherryPick'),
   revert: invoke('git:revert'),
   reset: invoke('git:reset'),
@@ -45,6 +50,10 @@ const git: GitApi = {
   fetch: invoke('git:fetch'),
   pull: invoke('git:pull'),
   push: invoke('git:push'),
+  fetchRemote: invoke('git:fetchRemote'),
+  addRemote: invoke('git:addRemote'),
+  removeRemote: invoke('git:removeRemote'),
+  setRemoteUrl: invoke('git:setRemoteUrl'),
   cancel: invoke('git:cancel'),
   stashes: invoke('git:stashes'),
   stash: invoke('git:stash'),
@@ -66,7 +75,13 @@ const repo: RepoApi = {
 const system: SystemApi = {
   platform: process.platform,
   openFile: invoke('system:openFile'),
-  reveal: invoke('system:reveal')
+  reveal: invoke('system:reveal'),
+  openInEditor: invoke('system:openInEditor'),
+  openTerminal: invoke('system:openTerminal'),
+  openFolder: invoke('system:openFolder'),
+  settings: invoke('system:settings'),
+  pickGitExecutable: invoke('system:pickGitExecutable'),
+  resetGitExecutable: invoke('system:resetGitExecutable')
 }
 
 contextBridge.exposeInMainWorld('git', git)

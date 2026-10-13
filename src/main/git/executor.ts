@@ -11,6 +11,8 @@ export interface RunOptions {
   onOutput?: (chunk: string) => void
   /** exit codes treated as success, e.g. [0, 1] for `diff --no-index` */
   okExitCodes?: number[]
+  /** overrides the configured Git executable (used to verify a candidate before saving it) */
+  executable?: string
 }
 
 export class GitCommandError extends Error {
@@ -20,6 +22,13 @@ export class GitCommandError extends Error {
 }
 
 const BASE_ARGS = ['-c', 'core.quotePath=false', '-c', 'color.ui=false']
+
+let gitExecutable = 'git'
+
+/** null restores `git` from PATH */
+export function setGitExecutable(path: string | null): void {
+  gitExecutable = path ?? 'git'
+}
 
 const env = (): NodeJS.ProcessEnv => ({
   ...process.env,
@@ -35,12 +44,12 @@ const env = (): NodeJS.ProcessEnv => ({
 })
 
 export function runGit(cwd: string, args: string[], options: RunOptions = {}): Promise<string> {
-  const { operation = args[0] ?? 'git', timeout = 120_000, signal, onOutput, okExitCodes = [0] } = options
+  const { operation = args[0] ?? 'git', timeout = 120_000, signal, onOutput, okExitCodes = [0], executable = gitExecutable } = options
   const command = `git ${args.join(' ')}`
   const started = Date.now()
 
   return new Promise((resolve, reject) => {
-    const child = spawn('git', [...BASE_ARGS, ...args], { cwd, env: env(), windowsHide: true, signal })
+    const child = spawn(executable, [...BASE_ARGS, ...args], { cwd, env: env(), windowsHide: true, signal })
     const out: Buffer[] = []
     const err: Buffer[] = []
     let settled = false

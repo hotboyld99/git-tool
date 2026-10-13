@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type {
   ChangedFile,
   DiffRequest,
+  FileBlame,
   FileDiff,
   GitBranch,
   GitCommit,
@@ -22,6 +23,7 @@ import { parseDiff } from '../git/diff'
 import { commitFilesArgs, parseNameStatus } from '../git/commit'
 import { parseRemotes } from '../git/remote'
 import { STASH_LIST_ARGS, parseStashes } from '../git/stash'
+import { blameArgs, parseBlame } from '../git/blame'
 
 type Output = (text: string) => void
 
@@ -48,6 +50,11 @@ const OPERATION_MARKERS: [string, RepoOperation][] = [
   ['REVERT_HEAD', 'revert'],
   ['MERGE_HEAD', 'merge']
 ]
+
+function assertUrl(url: string): string {
+  if (!url.trim() || url.startsWith('-') || /[\0\n]/.test(url)) throw new Error(`Invalid remote URL: "${url}"`)
+  return url.trim()
+}
 
 function assertFiles(files: string[]): string[] {
   if (files.length === 0) throw new Error('No files selected.')
@@ -166,9 +173,18 @@ export class GitService {
     await runGit(repo, ['clean', '-f', '-q', '--', ...assertFiles(files)])
   }
 
-  async commit(repo: string, message: string): Promise<void> {
+  /** `amend` replaces HEAD (message and staged changes); it rewrites history, the UI warns when HEAD is pushed. */
+  async commit(repo: string, message: string, amend = false): Promise<void> {
     if (!message.trim()) throw new Error('Commit message must not be empty.')
-    await runGit(repo, ['commit', '-m', message], { timeout: 0 }) // hooks may be slow
+    await runGit(repo, ['commit', ...(amend ? ['--amend'] : []), '-m', message], { timeout: 0 }) // hooks may be slow
+  }
+
+  async headMessage(repo: string): Promise<string> {
+    return (await runGit(repo, ['log', '-1', '--format=%B'])).trim()
+  }
+
+  async blame(repo: string, path: string, hash: string | null): Promise<FileBlame> {
+    return parseBlame(await runGit(repo, blameArgs(path, hash === null ? null : assertHash(hash))))
   }
 
   async checkout(repo: string, branch: string): Promise<void> {
@@ -219,6 +235,20 @@ export class GitService {
 
   async merge(repo: string, branch: string): Promise<void> {
     await runGit(repo, ['merge', '--no-edit', assertRef(branch)], { timeout: 0 })
+  }
+
+  /** Rebases the current branch onto `onto`; conflicts stop it (status.operation = 'rebase'). */
+  async rebase(repo: string, onto: string): Promise<void> {
+    await runGit(repo, ['rebase', assertRef(onto)], { timeout: 0 })
+  }
+
+  /** core.editor=true keeps each commit's message instead of opening an editor. */
+  async rebaseContinue(repo: string): Promise<void> {
+    await runGit(repo, ['-c', 'core.editor=true', 'rebase', '--continue'], { timeout: 0 })
+  }
+
+  async rebaseSkip(repo: string): Promise<void> {
+    await runGit(repo, ['rebase', '--skip'], { timeout: 0 })
   }
 
   async cherryPick(repo: string, hash: string): Promise<void> {
@@ -274,11 +304,27 @@ export class GitService {
     return this.runNetwork(repo, ['pull', '--progress'], onOutput)
   }
 
-  async push(repo: string, setUpstream: boolean, onOutput: Output): Promise<void> {
+  async push(repo: string, setUpstream: boolean, onOutput: Output, remote?: string): Promise<void> {
     if (!setUpstream) return this.runNetwork(repo, ['push', '--progress'], onOutput)
     const branch = (await runGit(repo, ['symbolic-ref', '--short', 'HEAD'])).trim()
-    const remote = await this.defaultRemote(repo)
-    return this.runNetwork(repo, ['push', '--progress', '-u', remote, branch], onOutput)
+    const target = remote ? assertRef(remote) : await this.defaultRemote(repo)
+    return this.runNetwork(repo, ['push', '--progress', '-u', target, branch], onOutput)
+  }
+
+  fetchRemote(repo: string, remote: string, onOutput: Output): Promise<void> {
+    return this.runNetwork(repo, ['fetch', '--prune', '--progress', assertRef(remote)], onOutput)
+  }
+
+  async addRemote(repo: string, name: string, url: string): Promise<void> {
+    await runGit(repo, ['remote', 'add', assertRef(name), assertUrl(url)])
+  }
+
+  async removeRemote(repo: string, name: string): Promise<void> {
+    await runGit(repo, ['remote', 'remove', assertRef(name)])
+  }
+
+  async setRemoteUrl(repo: string, name: string, url: string): Promise<void> {
+    await runGit(repo, ['remote', 'set-url', assertRef(name), assertUrl(url)])
   }
 
   cancel(repo: string): void {

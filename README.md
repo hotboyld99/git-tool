@@ -73,6 +73,12 @@ macOS, Windows, Linux. Paths go through `node:path`, Git is spawned directly (no
   Use Ours / Use Theirs / Mark as Resolved, conflict-marker diff, Git's prepared merge message pre-filled
 - Commit actions: cherry-pick, revert (merge commits use the first parent), reset soft / mixed / hard (hard is
   clearly marked), create tags (lightweight or annotated), push / delete tags, checkout commit, create branch here
+- Amend the last commit (HEAD's message pre-filled; warns when that commit is already pushed)
+- Rebase the current branch onto another (Continue / Skip / Abort on conflicts, no editor ever opens)
+- Blame view (per-line commit, author, date; click a hash to open the commit)
+- Remotes: add, edit URL, remove, fetch one remote, push the current branch to a specific remote
+- Open the repository in VS Code (`vscode://` URL handler, no `code` CLI needed), in the system terminal, or the file manager
+- Settings: custom Git executable (chosen through the native file picker and verified with `--version`)
 - History: search by message or hash, author filter, branch filter; keyboard navigation (↑/↓),
   hover highlighting, selected commit scrolled into view
 - File watching (working tree + `.git/HEAD`, `index`, `refs`) with debounced refresh
@@ -136,6 +142,8 @@ so scroll position and selection survive a refresh.
   validated path, so IPC calls cannot target arbitrary folders. File paths for open/reveal must stay inside the repository.
 - Git is always spawned with an argument array (never a shell string), so commit messages, branch names and
   file names cannot inject commands. Refs, hashes and stash names are validated; file arguments follow `--`.
+- A custom Git executable can only be chosen through the native file picker in the main process, never set
+  from a path sent by the renderer, and it must identify itself as Git.
 - `GIT_TERMINAL_PROMPT=0` prevents hidden credential prompts from hanging the app; credential helpers and ssh-agent still work.
 - Destructive operations (discard, delete untracked file, drop stash, force delete branch) always require confirmation;
   nothing uses `--force` / `-D` / `git clean` without the user asking for it.

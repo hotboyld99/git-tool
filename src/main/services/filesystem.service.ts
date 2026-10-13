@@ -1,5 +1,7 @@
+import { spawn } from 'node:child_process'
 import { watch } from 'node:fs'
 import { isAbsolute, relative, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { shell } from 'electron'
 import type { ChangeScope } from '../../shared/types'
 
@@ -18,6 +20,43 @@ export async function openFile(root: string, rel: string): Promise<void> {
 
 export function revealFile(root: string, rel: string): void {
   shell.showItemInFolder(resolveInside(root, rel))
+}
+
+/** VS Code's URL handler works on every OS without the `code` CLI being on PATH. */
+export async function openInEditor(root: string, rel?: string, line?: number): Promise<void> {
+  const full = rel ? resolveInside(root, rel) : root
+  await shell.openExternal(`vscode://file${pathToFileURL(full).pathname}${line ? `:${line}` : ''}`)
+}
+
+export async function openFolder(root: string): Promise<void> {
+  const error = await shell.openPath(root)
+  if (error) throw new Error(error)
+}
+
+/** Launches a detached terminal; resolves with false when the program does not exist. */
+function launch(command: string, args: string[], cwd: string): Promise<boolean> {
+  return new Promise((done) => {
+    const child = spawn(command, args, { cwd, detached: true, stdio: 'ignore' })
+    child.once('error', () => done(false))
+    child.once('spawn', () => {
+      child.unref()
+      done(true)
+    })
+  })
+}
+
+/** Opens the system terminal in the repository folder (no shell command line is built from the path). */
+export async function openTerminal(root: string): Promise<void> {
+  const candidates: [string, string[]][] =
+    process.platform === 'darwin'
+      ? [['open', ['-a', 'Terminal', root]]]
+      : process.platform === 'win32'
+        ? [['cmd.exe', ['/c', 'start', 'cmd.exe']]] // `start` opens the new window in cwd
+        : [['x-terminal-emulator', []], ['gnome-terminal', []], ['konsole', []], ['xfce4-terminal', []], ['xterm', []]]
+  for (const [command, args] of candidates) {
+    if (await launch(command, args, root)) return
+  }
+  throw new Error('No terminal application found.')
 }
 
 const GIT_DIR = /^\.git([\\/]|$)/

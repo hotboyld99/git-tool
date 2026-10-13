@@ -1,5 +1,5 @@
-import { Check, Cloud, GitBranch, Server } from 'lucide-react'
-import type { GitBranch as Branch, RepositoryId } from '../../../shared/types'
+import { Check, Cloud, GitBranch, Plus, Server } from 'lucide-react'
+import type { GitBranch as Branch, GitRemote, RepositoryId } from '../../../shared/types'
 import { getRepo, select, useRepo } from '../../stores/repository.store'
 import { actions } from '../../stores/git.store'
 import { openDialog, openMenu, type MenuEntry } from '../../stores/ui.store'
@@ -19,12 +19,30 @@ function branchMenu(id: RepositoryId, branch: Branch): MenuEntry[] {
       disabled: branch.isCurrent || !current,
       onClick: () => actions.merge(id, branch.name)
     },
+    {
+      label: current ? `Rebase ${current} onto ${branch.name}` : 'Rebase current branch onto this',
+      disabled: branch.isCurrent || !current,
+      onClick: () => actions.rebase(id, branch.name)
+    },
     { label: 'Create Branch Here…', onClick: () => openDialog({ type: 'createBranch', repoId: id, startPoint: branch.name, startLabel: branch.name }) },
     'separator',
     { label: 'Copy Branch Name', onClick: () => void navigator.clipboard.writeText(branch.name) }
   ]
   if (!branch.isRemote) entries.push('separator', { label: 'Delete Branch…', danger: true, disabled: branch.isCurrent, onClick: () => actions.deleteBranch(id, branch.name) })
   return entries
+}
+
+function remoteMenu(id: RepositoryId, remote: GitRemote): MenuEntry[] {
+  const current = getRepo(id)?.status?.branch ?? null
+  return [
+    { label: `Fetch ${remote.name}`, onClick: () => void actions.fetchRemote(id, remote.name) },
+    { label: current ? `Push ${current} to ${remote.name}` : 'Push current branch', disabled: !current, onClick: () => void actions.pushTo(id, remote.name) },
+    'separator',
+    { label: 'Edit URL…', onClick: () => openDialog({ type: 'remote', repoId: id, name: remote.name, url: remote.fetchUrl }) },
+    { label: 'Copy URL', onClick: () => void navigator.clipboard.writeText(remote.fetchUrl) },
+    'separator',
+    { label: 'Remove Remote…', danger: true, onClick: () => actions.removeRemote(id, remote.name) }
+  ]
 }
 
 /** "ahead 1, behind 2" -> "↑1 ↓2" */
@@ -63,10 +81,23 @@ export function BranchTree({ id }: { id: RepositoryId }) {
           />
         ))}
       </SidebarSection>
-      <SidebarSection title="Remote" count={remotes.length}>
+      <SidebarSection
+        title="Remote"
+        count={remotes.length}
+        action={
+          <button title="Add remote" className="rounded p-0.5 text-faint hover:bg-hover hover:text-fg" onClick={() => openDialog({ type: 'remote', repoId: id })}>
+            <Plus size={12} />
+          </button>
+        }
+      >
         {remotes.map((remote) => (
           <div key={remote.name}>
-            <SidebarItem icon={Server} label={remote.name} title={`Fetch: ${remote.fetchUrl}\nPush: ${remote.pushUrl}`} />
+            <SidebarItem
+              icon={Server}
+              label={remote.name}
+              title={`Fetch: ${remote.fetchUrl}\nPush: ${remote.pushUrl}`}
+              onContextMenu={(e) => openMenu(e, remoteMenu(id, remote))}
+            />
             {branches
               .filter((b) => b.remote === remote.name)
               .map((b) => {

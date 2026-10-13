@@ -41,6 +41,7 @@ export interface RepositoryState {
   selection: Selection
   selectedFile: SelectedFile | null
   commitMessage: string
+  amend: boolean
   loading: Record<LoadingKey, boolean>
   /** last progress line of the running network operation */
   progress: string
@@ -199,6 +200,7 @@ function emptyRepo(info: RepositoryInfo): RepositoryState {
     selection: { type: 'changes' },
     selectedFile: null,
     commitMessage: '',
+    amend: false,
     loading: { status: false, log: false, fetching: false, pulling: false, pushing: false, committing: false },
     progress: ''
   }

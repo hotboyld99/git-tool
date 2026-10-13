@@ -130,16 +130,26 @@ export const actions = {
     const message = repo?.commitMessage.trim()
     if (!repo?.status || !message || repo.loading.committing) return
     const { stagedFiles, unstagedFiles } = repo.status
-    if (stagedFiles.length === 0) {
+    // amending may only change the message; a normal commit with nothing staged stages everything first
+    if (stagedFiles.length === 0 && !repo.amend) {
       if (unstagedFiles.length === 0) return
       const staged = await actions.stageAll(id)
       if (!staged.ok) return
     }
-    const result = await run(id, `Commit "${message.split('\n')[0]}"`, () => window.git.commit(id, message), {
+    const label = `${repo.amend ? 'Amend' : 'Commit'} "${message.split('\n')[0]}"`
+    const result = await run(id, label, () => window.git.commit(id, message, repo.amend), {
       flag: 'committing',
       refresh: ['worktree', 'history', 'refs']
     })
-    if (result.ok) patchRepo(id, { commitMessage: '', selectedFile: null })
+    if (result.ok) patchRepo(id, { commitMessage: '', selectedFile: null, amend: false })
+  },
+
+  /** Turning amend on loads HEAD's message for editing (unless a message was already typed). */
+  async setAmend(id: RepositoryId, amend: boolean): Promise<void> {
+    patchRepo(id, { amend })
+    if (!amend || getRepo(id)?.commitMessage.trim()) return
+    const result = await window.git.headMessage(id)
+    if (result.ok && getRepo(id)?.amend && !getRepo(id)?.commitMessage.trim()) patchRepo(id, { commitMessage: result.data })
   },
 
   checkout: (id: RepositoryId, branch: string) =>
@@ -196,6 +206,29 @@ export const actions = {
       message: `Merge "${branch}" into "${current}"?`,
       confirmLabel: 'Merge',
       onConfirm: () => void run(id, `Merge ${branch} into ${current}`, () => window.git.merge(id, branch), { refresh: ['worktree', 'refs', 'history'] })
+    })
+  },
+
+  rebase(id: RepositoryId, onto: string): void {
+    const current = getRepo(id)?.status?.branch ?? 'HEAD'
+    confirm({
+      title: 'Rebase branch',
+      message: `Replay the commits of "${current}" on top of "${onto}"? This rewrites the history of "${current}"; avoid it for branches others already use.`,
+      confirmLabel: 'Rebase',
+      onConfirm: () => void run(id, `Rebase ${current} onto ${onto}`, () => window.git.rebase(id, onto), { refresh: ['worktree', 'refs', 'history'] })
+    })
+  },
+
+  rebaseContinue: (id: RepositoryId) =>
+    run(id, 'Continue rebase', () => window.git.rebaseContinue(id), { refresh: ['worktree', 'refs', 'history'] }),
+
+  rebaseSkip(id: RepositoryId): void {
+    confirm({
+      title: 'Skip this commit?',
+      message: 'The commit being replayed is dropped from the rebased branch, together with your conflict resolutions for it.',
+      confirmLabel: 'Skip Commit',
+      danger: true,
+      onConfirm: () => void run(id, 'Skip rebase commit', () => window.git.rebaseSkip(id), { refresh: ['worktree', 'refs', 'history'] })
     })
   },
 
@@ -274,6 +307,28 @@ export const actions = {
   },
 
   cancel: (id: RepositoryId) => void window.git.cancel(id),
+
+  pushTo: (id: RepositoryId, remote: string) =>
+    run(id, `Push to ${remote}`, () => window.git.push(id, true, remote), { flag: 'pushing', refresh: ['refs', 'history', 'worktree'] }),
+
+  fetchRemote: (id: RepositoryId, remote: string) =>
+    run(id, `Fetch ${remote}`, () => window.git.fetchRemote(id, remote), { flag: 'fetching', refresh: ['refs', 'history', 'worktree'] }),
+
+  addRemote: (id: RepositoryId, name: string, url: string) =>
+    run(id, `Add remote ${name}`, () => window.git.addRemote(id, name, url), { refresh: ['refs'] }),
+
+  setRemoteUrl: (id: RepositoryId, name: string, url: string) =>
+    run(id, `Set URL of ${name}`, () => window.git.setRemoteUrl(id, name, url), { refresh: ['refs'] }),
+
+  removeRemote(id: RepositoryId, name: string): void {
+    confirm({
+      title: 'Remove remote?',
+      message: `Remove remote "${name}" and its remote-tracking branches from this repository? Nothing is deleted on the server.`,
+      confirmLabel: 'Remove',
+      danger: true,
+      onConfirm: () => void run(id, `Remove remote ${name}`, () => window.git.removeRemote(id, name), { refresh: ['refs', 'history'] })
+    })
+  },
 
   stash: (id: RepositoryId, message: string, includeUntracked: boolean) =>
     run(id, 'Stash changes', () => window.git.stash(id, { message, includeUntracked }), { refresh: ['worktree', 'stashes'] }),

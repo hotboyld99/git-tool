@@ -6,6 +6,8 @@ import { join } from 'node:path'
 // isolate tests from the developer's ~/.gitconfig (signing, hooks, default branch...)
 const emptyConfig = join(mkdtempSync(join(tmpdir(), 'git-tool-cfg-')), 'gitconfig')
 writeFileSync(emptyConfig, '')
+// no editor configured: commands that would open one must not be reached (they would hang)
+for (const key of ['GIT_EDITOR', 'EDITOR', 'VISUAL', 'GIT_SEQUENCE_EDITOR']) delete process.env[key]
 Object.assign(process.env, {
   GIT_CONFIG_GLOBAL: emptyConfig,
   GIT_CONFIG_NOSYSTEM: '1',

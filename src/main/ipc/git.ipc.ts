@@ -35,7 +35,9 @@ export function registerGitIpc(repos: RepositoryService, git: GitService, sendPr
   handle('git:unstageAll', (id) => git.unstageAll(path(id)))
   handle('git:discard', (id, files) => git.discard(path(id), strs(files)))
   handle('git:deleteUntracked', (id, files) => git.deleteUntracked(path(id), strs(files)))
-  handle('git:commit', (id, message) => git.commit(path(id), str(message)))
+  handle('git:commit', (id, message, amend) => git.commit(path(id), str(message), bool(amend)))
+  handle('git:headMessage', (id) => git.headMessage(path(id)))
+  handle('git:blame', (id, file, hash) => git.blame(path(id), str(file), hash === null ? null : str(hash)))
 
   handle('git:checkout', (id, branch) => git.checkout(path(id), str(branch)))
   handle('git:checkoutRemote', (id, branch) => git.checkoutRemote(path(id), str(branch)))
@@ -45,6 +47,9 @@ export function registerGitIpc(repos: RepositoryService, git: GitService, sendPr
   )
   handle('git:deleteBranch', (id, name, force) => git.deleteBranch(path(id), str(name), bool(force)))
   handle('git:merge', (id, branch) => git.merge(path(id), str(branch)))
+  handle('git:rebase', (id, onto) => git.rebase(path(id), str(onto)))
+  handle('git:rebaseContinue', (id) => git.rebaseContinue(path(id)))
+  handle('git:rebaseSkip', (id) => git.rebaseSkip(path(id)))
   handle('git:cherryPick', (id, hash) => git.cherryPick(path(id), str(hash)))
   handle('git:revert', (id, hash) => git.revert(path(id), str(hash)))
   handle('git:reset', (id, hash, mode) => git.reset(path(id), str(hash), str(mode) as ResetMode))
@@ -56,7 +61,11 @@ export function registerGitIpc(repos: RepositoryService, git: GitService, sendPr
 
   handle('git:fetch', (id) => git.fetch(path(id), progress(id)))
   handle('git:pull', (id) => git.pull(path(id), progress(id)))
-  handle('git:push', (id, setUpstream) => git.push(path(id), bool(setUpstream), progress(id)))
+  handle('git:push', (id, setUpstream, remote) => git.push(path(id), bool(setUpstream), progress(id), optionalStr(remote)))
+  handle('git:fetchRemote', (id, remote) => git.fetchRemote(path(id), str(remote), progress(id)))
+  handle('git:addRemote', (id, name, url) => git.addRemote(path(id), str(name), str(url)))
+  handle('git:removeRemote', (id, name) => git.removeRemote(path(id), str(name)))
+  handle('git:setRemoteUrl', (id, name, url) => git.setRemoteUrl(path(id), str(name), str(url)))
   handle('git:cancel', (id) => git.cancel(path(id)))
 
   handle('git:stashes', (id) => git.getStashes(path(id)))

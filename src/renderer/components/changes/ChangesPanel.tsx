@@ -9,6 +9,8 @@ import { FileChangeList } from './FileChangeList'
 
 const headerButton = 'rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-hover hover:text-fg'
 
+const bannerButton = 'rounded border border-warn/40 px-2 py-0.5 hover:bg-warn/20 disabled:opacity-40'
+
 const OPERATION_LABEL = { merge: 'Merge', 'cherry-pick': 'Cherry-pick', revert: 'Revert', rebase: 'Rebase' }
 
 export function ChangesPanel({ id }: { id: RepositoryId }) {
@@ -45,6 +47,7 @@ export function ChangesPanel({ id }: { id: RepositoryId }) {
     ...changeEntries(f),
     'separator',
     { label: 'Open File', disabled: f.status === 'deleted', onClick: () => openFile(f) },
+    { label: 'Open in VS Code', disabled: f.status === 'deleted', onClick: () => void window.system.openInEditor(id, f.path) },
     { label: window.system.platform === 'darwin' ? 'Reveal in Finder' : 'Reveal in Explorer', disabled: f.status === 'deleted', onClick: () => void window.system.reveal(id, f.path) },
     { label: 'Copy Path', onClick: () => void navigator.clipboard.writeText(f.path) }
   ]
@@ -62,13 +65,23 @@ export function ChangesPanel({ id }: { id: RepositoryId }) {
           <AlertTriangle size={14} className="shrink-0" />
           <span className="flex-1">
             {OPERATION_LABEL[status.operation]} in progress —{' '}
-            {status.operation === 'rebase'
-              ? 'continue it from a terminal, or abort.'
-              : conflictedFiles.length > 0
-                ? `resolve ${conflictedFiles.length} conflict${conflictedFiles.length === 1 ? '' : 's'}, then commit.`
+            {conflictedFiles.length > 0
+              ? `resolve ${conflictedFiles.length} conflict${conflictedFiles.length === 1 ? '' : 's'}, then ${status.operation === 'rebase' ? 'continue' : 'commit'}.`
+              : status.operation === 'rebase'
+                ? 'continue to replay the next commit.'
                 : 'commit to finish.'}
           </span>
-          <button className="rounded border border-warn/40 px-2 py-0.5 hover:bg-warn/20" onClick={() => actions.abortOperation(id)}>
+          {status.operation === 'rebase' && (
+            <>
+              <button className={bannerButton} disabled={conflictedFiles.length > 0} onClick={() => void actions.rebaseContinue(id)}>
+                Continue
+              </button>
+              <button className={bannerButton} onClick={() => actions.rebaseSkip(id)}>
+                Skip
+              </button>
+            </>
+          )}
+          <button className={bannerButton} onClick={() => actions.abortOperation(id)}>
             Abort
           </button>
         </div>
@@ -126,7 +139,7 @@ export function ChangesPanel({ id }: { id: RepositoryId }) {
           onContextMenu={(e, f) => openMenu(e, fileMenu(f))}
         />
       </div>
-      <CommitPanel id={id} />
+      {status.operation !== 'rebase' && <CommitPanel id={id} />}
     </div>
   )
 }

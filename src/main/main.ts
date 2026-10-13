@@ -84,7 +84,7 @@ app.whenReady().then(() => {
 
   registerRepositoryIpc(repos, () => mainWindow, (event) => send('repo:changed', event))
   registerGitIpc(repos, git, (event) => send('git:progress', event))
-  registerFilesystemIpc(repos)
+  registerFilesystemIpc(repos, () => mainWindow)
 
   createMenu()
   createWindow()

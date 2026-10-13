@@ -17,11 +17,13 @@ export type Dialog =
   | { type: 'stash'; repoId: RepositoryId }
   | { type: 'createTag'; repoId: RepositoryId; hash: string; label: string }
   | { type: 'reset'; repoId: RepositoryId; hash: string; label: string; branch: string }
+  | { type: 'remote'; repoId: RepositoryId; name?: string; url?: string }
+  | { type: 'settings' }
 
 interface UiState {
   sidebarWidth: number
   detailWidth: number
-  diffMode: 'unified' | 'split'
+  diffMode: 'unified' | 'split' | 'blame'
   ignoreWhitespace: boolean
   logOpen: boolean
   dialog: Dialog | null

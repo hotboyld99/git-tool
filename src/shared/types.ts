@@ -123,6 +123,32 @@ export interface FileDiff {
   hunks: DiffHunk[]
 }
 
+export interface BlameCommit {
+  hash: string
+  author: string
+  /** ISO date */
+  date: string
+  summary: string
+}
+
+export interface BlameLine {
+  hash: string
+  /** line number in the blamed file */
+  line: number
+  content: string
+}
+
+export interface FileBlame {
+  lines: BlameLine[]
+  commits: Record<string, BlameCommit>
+}
+
+export interface AppSettings {
+  /** null = `git` from PATH */
+  gitPath: string | null
+  gitVersion: string
+}
+
 export interface GitError {
   operation: string
   exitCode: number
@@ -165,13 +191,19 @@ export interface GitApi {
   unstageAll(id: RepositoryId): Promise<Result<void>>
   discard(id: RepositoryId, files: string[]): Promise<Result<void>>
   deleteUntracked(id: RepositoryId, files: string[]): Promise<Result<void>>
-  commit(id: RepositoryId, message: string): Promise<Result<void>>
+  commit(id: RepositoryId, message: string, amend: boolean): Promise<Result<void>>
+  /** full message of HEAD (to edit when amending) */
+  headMessage(id: RepositoryId): Promise<Result<string>>
+  blame(id: RepositoryId, path: string, hash: string | null): Promise<Result<FileBlame>>
   checkout(id: RepositoryId, branch: string): Promise<Result<void>>
   checkoutRemote(id: RepositoryId, remoteBranch: string): Promise<Result<void>>
   checkoutCommit(id: RepositoryId, hash: string): Promise<Result<void>>
   createBranch(id: RepositoryId, name: string, startPoint: string | null, checkout: boolean): Promise<Result<void>>
   deleteBranch(id: RepositoryId, name: string, force: boolean): Promise<Result<void>>
   merge(id: RepositoryId, branch: string): Promise<Result<void>>
+  rebase(id: RepositoryId, onto: string): Promise<Result<void>>
+  rebaseContinue(id: RepositoryId): Promise<Result<void>>
+  rebaseSkip(id: RepositoryId): Promise<Result<void>>
   cherryPick(id: RepositoryId, hash: string): Promise<Result<void>>
   revert(id: RepositoryId, hash: string): Promise<Result<void>>
   reset(id: RepositoryId, hash: string, mode: ResetMode): Promise<Result<void>>
@@ -182,7 +214,12 @@ export interface GitApi {
   pushTag(id: RepositoryId, name: string): Promise<Result<void>>
   fetch(id: RepositoryId): Promise<Result<void>>
   pull(id: RepositoryId): Promise<Result<void>>
-  push(id: RepositoryId, setUpstream: boolean): Promise<Result<void>>
+  /** `remote` (with setUpstream) pushes the current branch to that remote instead of origin */
+  push(id: RepositoryId, setUpstream: boolean, remote?: string): Promise<Result<void>>
+  fetchRemote(id: RepositoryId, remote: string): Promise<Result<void>>
+  addRemote(id: RepositoryId, name: string, url: string): Promise<Result<void>>
+  removeRemote(id: RepositoryId, name: string): Promise<Result<void>>
+  setRemoteUrl(id: RepositoryId, name: string, url: string): Promise<Result<void>>
   cancel(id: RepositoryId): Promise<Result<void>>
   stashes(id: RepositoryId): Promise<Result<GitStash[]>>
   stash(id: RepositoryId, options: { message: string; includeUntracked: boolean }): Promise<Result<void>>
@@ -206,4 +243,12 @@ export interface SystemApi {
   platform: string
   openFile(id: RepositoryId, path: string): Promise<Result<void>>
   reveal(id: RepositoryId, path: string): Promise<Result<void>>
+  /** opens the repository (or one of its files, at `line`) in VS Code */
+  openInEditor(id: RepositoryId, path?: string, line?: number): Promise<Result<void>>
+  openTerminal(id: RepositoryId): Promise<Result<void>>
+  openFolder(id: RepositoryId): Promise<Result<void>>
+  settings(): Promise<Result<AppSettings>>
+  /** native file picker; the chosen file must answer `--version` like Git */
+  pickGitExecutable(): Promise<Result<AppSettings | null>>
+  resetGitExecutable(): Promise<Result<AppSettings>>
 }

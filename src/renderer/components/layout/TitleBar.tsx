@@ -1,6 +1,6 @@
-import { History, Plus } from 'lucide-react'
+import { History, Plus, Settings } from 'lucide-react'
 import { openRepositoryDialog, openRepositoryPath, useRepos } from '../../stores/repository.store'
-import { openMenu } from '../../stores/ui.store'
+import { openDialog, openMenu } from '../../stores/ui.store'
 import { TabBar } from './TabBar'
 
 export function TitleBar() {
@@ -23,6 +23,9 @@ export function TitleBar() {
         onClick={(e) => openMenu(e, recent.map((path) => ({ label: path, onClick: () => void openRepositoryPath(path) })))}
       >
         <History size={15} />
+      </button>
+      <button title="Settings" className="no-drag mb-1 ml-auto rounded p-1.5 text-muted hover:bg-hover hover:text-fg" onClick={() => openDialog({ type: 'settings' })}>
+        <Settings size={15} />
       </button>
     </header>
   )

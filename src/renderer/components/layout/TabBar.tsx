@@ -1,6 +1,8 @@
 import { GitBranch, X } from 'lucide-react'
 import type { RepositoryId } from '../../../shared/types'
 import { activate, closeRepository, isDirty, useRepo, useRepos } from '../../stores/repository.store'
+import { openMenu } from '../../stores/ui.store'
+import { openInMenu } from './Toolbar'
 
 function Tab({ id, active }: { id: RepositoryId; active: boolean }) {
   const repo = useRepo(id)
@@ -10,6 +12,14 @@ function Tab({ id, active }: { id: RepositoryId; active: boolean }) {
       title={repo.info.path}
       onMouseDown={(e) => e.button === 0 && activate(id)}
       onAuxClick={(e) => e.button === 1 && void closeRepository(id)}
+      onContextMenu={(e) =>
+        openMenu(e, [
+          ...openInMenu(id),
+          { label: 'Copy Path', onClick: () => void navigator.clipboard.writeText(repo.info.path) },
+          'separator',
+          { label: 'Close Repository', onClick: () => void closeRepository(id) }
+        ])
+      }
       className={`no-drag group flex h-8 w-44 shrink-0 items-center gap-2 rounded-t-md border border-b-0 px-3 ${
         active ? 'border-line bg-panel' : 'border-transparent text-muted hover:bg-panel/60'
       }`}

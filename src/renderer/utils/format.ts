@@ -18,7 +18,7 @@ export function splitPath(path: string): { dir: string; name: string } {
 
 /** Short, human readable summary of a Git error output: prefers the first error/fatal line. */
 export function errorSummary(stderr: string): string {
-  const lines = stderr.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('hint:'))
+  const lines = stderr.split(/\r\n|\r|\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('hint:'))
   const main = lines.find((l) => /^(error|fatal):/.test(l)) ?? lines.find((l) => l.startsWith('!')) ?? lines[0] ?? ''
   return main.replace(/^(error|fatal):\s*/, '')
 }

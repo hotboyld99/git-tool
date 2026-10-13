@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Copy, Minus, Plus, RotateCw, X } from 'lucide-react'
+import { Code, Copy, Minus, Plus, RotateCw, X } from 'lucide-react'
 import type { DiffRequest, FileDiff, RepositoryId } from '../../../shared/types'
 import { selectFile, useRepo, type SelectedFile } from '../../stores/repository.store'
 import { actions } from '../../stores/git.store'
@@ -9,6 +9,7 @@ import { languageOf } from '../../utils/highlight'
 import { Spinner } from '../common/Spinner'
 import { UnifiedDiff } from './UnifiedDiff'
 import { SplitDiff } from './SplitDiff'
+import { BlameView } from './BlameView'
 
 const toggle = (active: boolean): string =>
   `rounded px-2 py-0.5 text-[11px] ${active ? 'bg-accent/25 text-fg' : 'text-muted hover:bg-hover hover:text-fg'}`
@@ -33,6 +34,7 @@ export function DiffViewer({ id, file }: { id: RepositoryId; file: SelectedFile 
   const statusVersion = file.source === 'working' ? status : null
 
   useEffect(() => {
+    if (diffMode === 'blame') return
     let cancelled = false
     void window.git.diff(id, request).then((r) => {
       if (cancelled) return
@@ -42,7 +44,7 @@ export function DiffViewer({ id, file }: { id: RepositoryId; file: SelectedFile 
     return () => {
       cancelled = true
     }
-  }, [id, request, statusVersion, reload])
+  }, [id, request, statusVersion, reload, diffMode])
 
   const language = languageOf(file.path)
 
@@ -62,6 +64,14 @@ export function DiffViewer({ id, file }: { id: RepositoryId; file: SelectedFile 
           <button className={toggle(diffMode === 'split')} onClick={() => setUi({ diffMode: 'split' })}>
             Split
           </button>
+          <button
+            className={toggle(diffMode === 'blame')}
+            title="Who changed each line, and in which commit"
+            disabled={file.source === 'working' && file.untracked}
+            onClick={() => setUi({ diffMode: 'blame' })}
+          >
+            Blame
+          </button>
         </div>
         <button className={toggle(ignoreWhitespace)} title="Ignore whitespace changes" onClick={() => setUi({ ignoreWhitespace: !ignoreWhitespace })}>
           Whitespace
@@ -69,6 +79,18 @@ export function DiffViewer({ id, file }: { id: RepositoryId; file: SelectedFile 
         <button className={iconButton} title="Copy diff" disabled={!diff} onClick={() => diff && void navigator.clipboard.writeText(diff.raw)}>
           <Copy size={14} />
         </button>
+        {file.source === 'working' && (
+          <button
+            className={iconButton}
+            title="Open in VS Code"
+            onClick={() => {
+              const line = /\+(\d+)/.exec(diff?.hunks[0]?.header ?? '')?.[1]
+              void window.system.openInEditor(id, file.path, line ? Number(line) : undefined)
+            }}
+          >
+            <Code size={14} />
+          </button>
+        )}
         <button className={iconButton} title="Refresh" onClick={() => setReload((n) => n + 1)}>
           <RotateCw size={14} />
         </button>
@@ -95,7 +117,16 @@ export function DiffViewer({ id, file }: { id: RepositoryId; file: SelectedFile 
         </button>
       </div>
       <div className="min-h-0 flex-1">
-        {error ? (
+        {diffMode === 'blame' ? (
+          <BlameView
+            key={reload}
+            id={id}
+            path={file.path}
+            hash={file.source === 'commit' ? file.hash : null}
+            language={language}
+            version={statusVersion}
+          />
+        ) : error ? (
           <div className="p-4 text-danger">{error}</div>
         ) : !diff ? (
           <div className="flex justify-center p-6 text-muted">
