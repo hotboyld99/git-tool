@@ -6,6 +6,9 @@ import { CreateTagDialog } from './CreateTagDialog'
 import { ResetDialog } from './ResetDialog'
 import { RemoteDialog } from './RemoteDialog'
 import { SettingsDialog } from './SettingsDialog'
+import { InteractiveRebaseDialog } from './InteractiveRebaseDialog'
+import { FlowStartDialog } from './FlowStartDialog'
+import { WorktreeDialog } from './WorktreeDialog'
 
 export function DialogHost() {
   const dialog = useUi((s) => s.dialog)
@@ -24,6 +27,12 @@ export function DialogHost() {
       return <RemoteDialog dialog={dialog} />
     case 'settings':
       return <SettingsDialog />
+    case 'interactiveRebase':
+      return <InteractiveRebaseDialog dialog={dialog} />
+    case 'flowStart':
+      return <FlowStartDialog dialog={dialog} />
+    case 'worktree':
+      return <WorktreeDialog dialog={dialog} />
     default:
       return null
   }

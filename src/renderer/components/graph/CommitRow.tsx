@@ -24,6 +24,7 @@ interface Props {
 function commitMenu(repoId: RepositoryId, commit: GitCommit): MenuEntry[] {
   const status = getRepo(repoId)?.status
   const isHead = status?.head === commit.hash
+  const busy = !!status?.operation
   const label = `commit ${commit.shortHash}`
   return [
     { label: 'Checkout Commit…', disabled: isHead, onClick: () => actions.checkoutCommit(repoId, commit.hash) },
@@ -33,10 +34,17 @@ function commitMenu(repoId: RepositoryId, commit: GitCommit): MenuEntry[] {
     { label: 'Cherry Pick Commit', disabled: isHead, onClick: () => void actions.cherryPick(repoId, commit.hash) },
     { label: 'Revert Commit…', onClick: () => actions.revert(repoId, commit.hash) },
     {
+      label: 'Interactive Rebase onto Here…',
+      disabled: isHead || busy,
+      onClick: () => openDialog({ type: 'interactiveRebase', repoId, base: commit.hash, label })
+    },
+    {
       label: `Reset ${status?.branch ?? 'HEAD'} to Here…`,
       disabled: isHead,
       onClick: () => openDialog({ type: 'reset', repoId, hash: commit.hash, label, branch: status?.branch ?? 'HEAD' })
     },
+    'separator',
+    { label: 'Start Bisect (this is good, HEAD is bad)', disabled: isHead || busy, onClick: () => void actions.bisectStart(repoId, commit.hash) },
     'separator',
     { label: 'Copy Commit Hash', onClick: () => void navigator.clipboard.writeText(commit.hash) },
     { label: 'Copy Commit Message', onClick: () => void navigator.clipboard.writeText(commit.body ? `${commit.subject}\n\n${commit.body}` : commit.subject) }

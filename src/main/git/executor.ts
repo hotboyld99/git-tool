@@ -13,6 +13,8 @@ export interface RunOptions {
   okExitCodes?: number[]
   /** overrides the configured Git executable (used to verify a candidate before saving it) */
   executable?: string
+  /** extra environment, e.g. GIT_EDITOR / GIT_SEQUENCE_EDITOR (env wins over the user's config and env) */
+  env?: Record<string, string>
 }
 
 export class GitCommandError extends Error {
@@ -30,6 +32,8 @@ export function setGitExecutable(path: string | null): void {
   gitExecutable = path ?? 'git'
 }
 
+export const getGitExecutable = (): string => gitExecutable
+
 const env = (): NodeJS.ProcessEnv => ({
   ...process.env,
   // never block on an interactive terminal prompt; credential helpers / ssh-agent still work
@@ -44,12 +48,12 @@ const env = (): NodeJS.ProcessEnv => ({
 })
 
 export function runGit(cwd: string, args: string[], options: RunOptions = {}): Promise<string> {
-  const { operation = args[0] ?? 'git', timeout = 120_000, signal, onOutput, okExitCodes = [0], executable = gitExecutable } = options
+  const { operation = args[0] ?? 'git', timeout = 120_000, signal, onOutput, okExitCodes = [0], executable = gitExecutable, env: extraEnv } = options
   const command = `git ${args.join(' ')}`
   const started = Date.now()
 
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, [...BASE_ARGS, ...args], { cwd, env: env(), windowsHide: true, signal })
+    const child = spawn(executable, [...BASE_ARGS, ...args], { cwd, env: { ...env(), ...extraEnv }, windowsHide: true, signal })
     const out: Buffer[] = []
     const err: Buffer[] = []
     let settled = false

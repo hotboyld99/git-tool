@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import type { GitFileStatus, RepositoryId, ResetMode, Result } from '../../shared/types'
+import type { FlowKind, GitFileStatus, GitWorktree, RebaseStep, RepositoryId, ResetMode, Result } from '../../shared/types'
 import {
   getRepo,
+  openRepositoryPath,
   patchRepo,
   refreshHistory,
   refreshRefs,
@@ -232,6 +233,87 @@ export const actions = {
     })
   },
 
+  interactiveRebase: (id: RepositoryId, base: string, steps: RebaseStep[]) =>
+    run(id, `Interactive rebase onto ${base.slice(0, 7)}`, () => window.git.interactiveRebase(id, base, steps), {
+      refresh: ['worktree', 'refs', 'history']
+    }),
+
+  async bisectStart(id: RepositoryId, good: string): Promise<void> {
+    const bad = getRepo(id)?.status?.head
+    if (!bad) return
+    const result = await run(id, `Bisect ${good.slice(0, 7)}..${bad.slice(0, 7)}`, () => window.git.bisectStart(id, bad, good), {
+      refresh: ['worktree', 'refs', 'history']
+    })
+    if (result.ok) patchRepo(id, { bisectMessage: result.data })
+  },
+
+  async bisectMark(id: RepositoryId, verdict: 'good' | 'bad' | 'skip'): Promise<void> {
+    const result = await run(id, `Bisect: mark ${verdict}`, () => window.git.bisectMark(id, verdict), { refresh: ['worktree', 'refs', 'history'] })
+    if (result.ok) patchRepo(id, { bisectMessage: result.data })
+  },
+
+  async addWorktree(id: RepositoryId, branch: string, createBranch: boolean): Promise<Result<string | null>> {
+    const result = await run(id, `Add worktree for ${branch}`, () => window.git.addWorktree(id, branch, createBranch), { refresh: ['refs'] })
+    if (result.ok && result.data) await openRepositoryPath(result.data)
+    return result
+  },
+
+  removeWorktree(id: RepositoryId, worktree: GitWorktree): void {
+    const remove = (force: boolean) =>
+      run(id, `Remove worktree ${worktree.path}`, () => window.git.removeWorktree(id, worktree.path, force), { refresh: ['refs'], showError: false })
+    confirm({
+      title: 'Remove worktree?',
+      message: `Delete the worktree folder "${worktree.path}"? The branch${worktree.branch ? ` "${worktree.branch}"` : ''} is kept.`,
+      confirmLabel: 'Remove',
+      danger: true,
+      onConfirm: async () => {
+        const result = await remove(false)
+        if (result.ok) return
+        if (!/modified or untracked files|use --force/.test(result.error.stderr)) return showError(result.error)
+        confirm({
+          title: 'Worktree has changes',
+          message: `"${worktree.path}" contains modified or untracked files. Removing it anyway deletes those changes.`,
+          confirmLabel: 'Force Remove',
+          danger: true,
+          onConfirm: async () => {
+            const forced = await remove(true)
+            if (!forced.ok) showError(forced.error)
+          }
+        })
+      }
+    })
+  },
+
+  pruneWorktrees: (id: RepositoryId) => run(id, 'Prune worktrees', () => window.git.pruneWorktrees(id), { refresh: ['refs'] }),
+
+  updateSubmodules: (id: RepositoryId, path?: string) =>
+    run(id, path ? `Update submodule ${path}` : 'Update submodules', () => window.git.updateSubmodules(id, path), {
+      flag: 'fetching',
+      refresh: ['worktree', 'refs']
+    }),
+
+  lfsPull: (id: RepositoryId) => run(id, 'Git LFS pull', () => window.git.lfsPull(id), { flag: 'pulling', refresh: ['worktree', 'refs'] }),
+
+  gitFlowInit: (id: RepositoryId) => run(id, 'Initialize Git Flow', () => window.git.gitFlowInit(id), { refresh: ['refs', 'history'] }),
+
+  gitFlowStart: (id: RepositoryId, kind: FlowKind, name: string) =>
+    run(id, `Start ${kind} ${name}`, () => window.git.gitFlowStart(id, kind, name), { refresh: ['worktree', 'refs', 'history'] }),
+
+  gitFlowFinish(id: RepositoryId, branch: string): void {
+    const flow = getRepo(id)?.flow
+    if (!flow) return
+    const feature = branch.startsWith(flow.feature)
+    const version = branch.slice(branch.indexOf('/') + 1)
+    confirm({
+      title: `Finish ${branch}`,
+      message: feature
+        ? `Merge "${branch}" into "${flow.develop}" and delete it.`
+        : `Merge "${branch}" into "${flow.main}", tag it "${flow.versionTag}${version}", merge it into "${flow.develop}" and delete it.`,
+      confirmLabel: 'Finish',
+      onConfirm: () => void run(id, `Finish ${branch}`, () => window.git.gitFlowFinish(id, branch), { refresh: ['worktree', 'refs', 'history'] })
+    })
+  },
+
   cherryPick: (id: RepositoryId, hash: string) =>
     run(id, `Cherry-pick ${hash.slice(0, 7)}`, () => window.git.cherryPick(id, hash), { refresh: ['worktree', 'refs', 'history'] }),
 
@@ -249,15 +331,18 @@ export const actions = {
 
   abortOperation(id: RepositoryId): void {
     const operation = getRepo(id)?.status?.operation ?? 'operation'
+    const abort = async (): Promise<void> => {
+      const result = await run(id, `Abort ${operation}`, () => window.git.abortOperation(id), { refresh: ['worktree', 'refs', 'history'] })
+      if (result.ok) patchRepo(id, operation === 'bisect' ? { bisectMessage: '' } : { commitMessage: '' })
+    }
+    // ending a bisect only checks the original branch out again: nothing to lose
+    if (operation === 'bisect') return void abort()
     confirm({
       title: `Abort ${operation}?`,
       message: `The ${operation} will be stopped and the repository returns to the state before it started. Conflict resolutions made so far are lost.`,
       confirmLabel: `Abort ${operation}`,
       danger: true,
-      onConfirm: async () => {
-        const result = await run(id, `Abort ${operation}`, () => window.git.abortOperation(id), { refresh: ['worktree', 'refs', 'history'] })
-        if (result.ok) patchRepo(id, { commitMessage: '' })
-      }
+      onConfirm: () => void abort()
     })
   },
 

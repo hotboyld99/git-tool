@@ -10,11 +10,12 @@ interface Props {
   disabled?: boolean
   /** button focused on open; form dialogs leave it unset and focus their first input */
   initialFocus?: 'confirm' | 'cancel'
+  wide?: boolean
   onConfirm: () => void
 }
 
 /** Modal form: Enter submits, Escape / Cancel closes. */
-export function Modal({ title, children, confirmLabel, danger, disabled, initialFocus, onConfirm }: Props) {
+export function Modal({ title, children, confirmLabel, danger, disabled, initialFocus, wide, onConfirm }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') closeDialog()
@@ -30,7 +31,7 @@ export function Modal({ title, children, confirmLabel, danger, disabled, initial
 
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/50 pt-[15vh]" onMouseDown={closeDialog}>
-      <form onSubmit={submit} onMouseDown={(e) => e.stopPropagation()} className="w-110 rounded-lg border border-line bg-raised shadow-2xl">
+      <form onSubmit={submit} onMouseDown={(e) => e.stopPropagation()} className={`${wide ? 'w-180' : 'w-110'} max-w-[90vw] rounded-lg border border-line bg-raised shadow-2xl`}>
         <div className="border-b border-line px-4 py-3 text-[13px] font-semibold">{title}</div>
         <div className="space-y-3 px-4 py-4">{children}</div>
         <div className="flex justify-end gap-2 border-t border-line px-4 py-3">

@@ -8,6 +8,7 @@ import { DiffViewer } from '../diff/DiffViewer'
 import { ChangesPanel } from '../changes/ChangesPanel'
 import { CommitDetail } from '../commit/CommitDetail'
 import { RepositorySidebar } from './RepositorySidebar'
+import { OperationBanner } from './OperationBanner'
 
 export function RepositoryTab({ id }: { id: RepositoryId }) {
   const { selection, selectedFile } = useRepo(id)
@@ -17,6 +18,7 @@ export function RepositoryTab({ id }: { id: RepositoryId }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <Toolbar id={id} />
+      <OperationBanner id={id} />
       <div className="flex min-h-0 flex-1">
         <div className="shrink-0" style={{ width: sidebarWidth }}>
           <RepositorySidebar id={id} />

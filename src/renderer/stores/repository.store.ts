@@ -2,6 +2,10 @@ import { create } from 'zustand'
 import type {
   GitBranch,
   GitCommit,
+  GitFlowConfig,
+  GitSubmodule,
+  GitWorktree,
+  LfsInfo,
   GitRemote,
   GitStash,
   GitStatus,
@@ -35,6 +39,13 @@ export interface RepositoryState {
   remotes: GitRemote[]
   stashes: GitStash[]
   tags: GitTag[]
+  worktrees: GitWorktree[]
+  submodules: GitSubmodule[]
+  lfs: LfsInfo | null
+  /** null = Git Flow not initialized */
+  flow: GitFlowConfig | null
+  /** Git's last bisect message ("Bisecting: …" / "<hash> is the first bad commit") */
+  bisectMessage: string
   commits: GitCommit[]
   hasMoreCommits: boolean
   historyFilter: HistoryFilter
@@ -84,15 +95,16 @@ export const isDirty = (s: GitStatus | null): boolean =>
 // Only the latest request of each kind may write, so slow responses never overwrite newer data.
 const sequence = new Map<string, number>()
 
-async function load<T>(id: RepositoryId, kind: string, call: Promise<Result<T>>): Promise<T | null> {
+/** undefined = failed (error shown) or superseded by a newer request */
+async function load<T>(id: RepositoryId, kind: string, call: Promise<Result<T>>): Promise<T | undefined> {
   const key = `${id}:${kind}`
   const n = (sequence.get(key) ?? 0) + 1
   sequence.set(key, n)
   const result = await call
-  if (sequence.get(key) !== n || !getRepo(id)) return null
+  if (sequence.get(key) !== n || !getRepo(id)) return undefined
   if (!result.ok) {
     showError(result.error)
-    return null
+    return undefined
   }
   return result.data
 }
@@ -113,10 +125,14 @@ export async function refreshWorkingTree(id: RepositoryId, followHead = true): P
 }
 
 export async function refreshRefs(id: RepositoryId): Promise<void> {
-  const [branches, remotes, tags] = await Promise.all([
+  const [branches, remotes, tags, worktrees, submodules, lfs, flow] = await Promise.all([
     load(id, 'branches', window.git.branches(id)),
     load(id, 'remotes', window.git.remotes(id)),
-    load(id, 'tags', window.git.tags(id))
+    load(id, 'tags', window.git.tags(id)),
+    load(id, 'worktrees', window.git.worktrees(id)),
+    load(id, 'submodules', window.git.submodules(id)),
+    load(id, 'lfs', window.git.lfs(id)),
+    load(id, 'flow', window.git.gitFlow(id))
   ])
   if (branches) patchRepo(id, { branches })
   // the branch the history was filtered on was deleted: show all branches again
@@ -124,6 +140,10 @@ export async function refreshRefs(id: RepositoryId): Promise<void> {
   if (branches && ref && !branches.some((b) => b.name === ref)) setHistoryFilter(id, { ref: '' })
   if (remotes) patchRepo(id, { remotes })
   if (tags) patchRepo(id, { tags })
+  if (worktrees) patchRepo(id, { worktrees })
+  if (submodules) patchRepo(id, { submodules })
+  if (lfs) patchRepo(id, { lfs })
+  if (flow !== undefined) patchRepo(id, { flow }) // null is a valid answer: not initialized
 }
 
 export async function refreshStashes(id: RepositoryId): Promise<void> {
@@ -194,6 +214,11 @@ function emptyRepo(info: RepositoryInfo): RepositoryState {
     remotes: [],
     stashes: [],
     tags: [],
+    worktrees: [],
+    submodules: [],
+    lfs: null,
+    flow: null,
+    bisectMessage: '',
     commits: [],
     hasMoreCommits: false,
     historyFilter: { search: '', author: '', ref: '' },

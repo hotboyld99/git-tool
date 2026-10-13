@@ -1,7 +1,7 @@
 import type { ComponentType, MouseEvent } from 'react'
-import { Archive, ArchiveRestore, ArrowDownToLine, ArrowUpFromLine, CloudDownload, ExternalLink, GitBranch, GitBranchPlus, RotateCw, X } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowDownToLine, ArrowUpFromLine, CloudDownload, ExternalLink, GitBranch, GitBranchPlus, Workflow, RotateCw, X } from 'lucide-react'
 import type { RepositoryId } from '../../../shared/types'
-import { isDirty, refreshAll, useRepo } from '../../stores/repository.store'
+import { getRepo, isDirty, refreshAll, useRepo } from '../../stores/repository.store'
 import { actions } from '../../stores/git.store'
 import { openDialog, openMenu, type MenuEntry } from '../../stores/ui.store'
 import { Spinner } from '../common/Spinner'
@@ -13,6 +13,21 @@ export function openInMenu(id: RepositoryId): MenuEntry[] {
     { label: 'Open in VS Code', onClick: () => void window.system.openInEditor(id) },
     { label: 'Open in Terminal', onClick: () => void window.system.openTerminal(id) },
     { label: mac ? 'Show in Finder' : 'Show in File Explorer', onClick: () => void window.system.openFolder(id) }
+  ]
+}
+
+function flowMenu(id: RepositoryId): MenuEntry[] {
+  const repo = getRepo(id)
+  const flow = repo?.flow
+  if (!flow) return [{ label: 'Initialize Git Flow (main + develop)', onClick: () => void actions.gitFlowInit(id) }]
+  const branch = repo.status?.branch ?? ''
+  const finishable = [flow.feature, flow.release, flow.hotfix].some((prefix) => branch.startsWith(prefix))
+  return [
+    { label: 'Start Feature…', onClick: () => openDialog({ type: 'flowStart', repoId: id, kind: 'feature' }) },
+    { label: 'Start Release…', onClick: () => openDialog({ type: 'flowStart', repoId: id, kind: 'release' }) },
+    { label: 'Start Hotfix…', onClick: () => openDialog({ type: 'flowStart', repoId: id, kind: 'hotfix' }) },
+    'separator',
+    { label: finishable ? `Finish ${branch}…` : 'Finish (check out a flow branch first)', disabled: !finishable, onClick: () => actions.gitFlowFinish(id, branch) }
   ]
 }
 
@@ -71,6 +86,7 @@ export function Toolbar({ id }: { id: RepositoryId }) {
         />
         <ToolButton icon={Archive} label="Stash" title="Stash changes" disabled={!isDirty(status)} onClick={() => openDialog({ type: 'stash', repoId: id })} />
         <ToolButton icon={ArchiveRestore} label="Pop" title="Pop latest stash" disabled={stashes.length === 0} onClick={() => void actions.stashPop(id, stashes[0].ref)} />
+        <ToolButton icon={Workflow} label="Flow" title="Git Flow" onClick={(e) => openMenu(e, flowMenu(id))} />
         <div className="mx-2 h-7 border-l border-line" />
         <ToolButton icon={ExternalLink} label="Open" title="Open in VS Code, Terminal or file manager" onClick={(e) => openMenu(e, openInMenu(id))} />
         <ToolButton icon={RotateCw} label="Refresh" title="Refresh (Ctrl/⌘+R)" busy={loading.status} onClick={() => void refreshAll(id)} />

@@ -16,7 +16,7 @@ export interface GitFileStatus {
 }
 
 /** multi-step operation waiting for the user (conflicts to resolve, then commit or abort) */
-export type RepoOperation = 'merge' | 'cherry-pick' | 'revert' | 'rebase'
+export type RepoOperation = 'merge' | 'cherry-pick' | 'revert' | 'rebase' | 'bisect'
 
 export interface GitStatus {
   /** null when HEAD is detached */
@@ -53,6 +53,50 @@ export interface GitTag {
   hash: string
   message?: string
 }
+
+export type RebaseAction = 'pick' | 'reword' | 'squash' | 'fixup' | 'drop'
+
+/** One line of an interactive rebase todo, oldest commit first. `message` is the new message for reword. */
+export interface RebaseStep {
+  hash: string
+  action: RebaseAction
+  message?: string
+}
+
+export interface GitWorktree {
+  path: string
+  head: string
+  /** null when detached */
+  branch: string | null
+  isMain: boolean
+  locked: boolean
+  prunable: boolean
+}
+
+export interface GitSubmodule {
+  path: string
+  hash: string
+  state: 'ok' | 'uninitialized' | 'modified' | 'conflict'
+}
+
+export interface LfsInfo {
+  installed: boolean
+  version?: string
+  patterns: string[]
+  /** `downloaded` = full object present (not just the pointer) */
+  files: { path: string; downloaded: boolean }[]
+}
+
+export interface GitFlowConfig {
+  main: string
+  develop: string
+  feature: string
+  release: string
+  hotfix: string
+  versionTag: string
+}
+
+export type FlowKind = 'feature' | 'release' | 'hotfix'
 
 export interface GitRemote {
   name: string
@@ -204,6 +248,26 @@ export interface GitApi {
   rebase(id: RepositoryId, onto: string): Promise<Result<void>>
   rebaseContinue(id: RepositoryId): Promise<Result<void>>
   rebaseSkip(id: RepositoryId): Promise<Result<void>>
+  /** commits an interactive rebase onto `base` would rewrite (oldest first) and how many merges get flattened */
+  rebaseCommits(id: RepositoryId, base: string): Promise<Result<{ commits: GitCommit[]; merges: number }>>
+  interactiveRebase(id: RepositoryId, base: string, steps: RebaseStep[]): Promise<Result<void>>
+  /** returns Git's message ("Bisecting: N revisions left…" / "<hash> is the first bad commit") */
+  bisectStart(id: RepositoryId, bad: string, good: string): Promise<Result<string>>
+  bisectMark(id: RepositoryId, verdict: 'good' | 'bad' | 'skip'): Promise<Result<string>>
+  worktrees(id: RepositoryId): Promise<Result<GitWorktree[]>>
+  /** asks for the folder with a native dialog; data is null when cancelled */
+  addWorktree(id: RepositoryId, branch: string, createBranch: boolean): Promise<Result<string | null>>
+  removeWorktree(id: RepositoryId, path: string, force: boolean): Promise<Result<void>>
+  pruneWorktrees(id: RepositoryId): Promise<Result<void>>
+  submodules(id: RepositoryId): Promise<Result<GitSubmodule[]>>
+  updateSubmodules(id: RepositoryId, path?: string): Promise<Result<void>>
+  lfs(id: RepositoryId): Promise<Result<LfsInfo>>
+  lfsPull(id: RepositoryId): Promise<Result<void>>
+  /** null when Git Flow is not initialized */
+  gitFlow(id: RepositoryId): Promise<Result<GitFlowConfig | null>>
+  gitFlowInit(id: RepositoryId): Promise<Result<void>>
+  gitFlowStart(id: RepositoryId, kind: FlowKind, name: string): Promise<Result<void>>
+  gitFlowFinish(id: RepositoryId, branch: string): Promise<Result<void>>
   cherryPick(id: RepositoryId, hash: string): Promise<Result<void>>
   revert(id: RepositoryId, hash: string): Promise<Result<void>>
   reset(id: RepositoryId, hash: string, mode: ResetMode): Promise<Result<void>>

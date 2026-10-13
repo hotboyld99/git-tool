@@ -27,6 +27,8 @@ function groupRefs(refs: string[], remotes: string[], currentBranch: string | nu
     }
     groups.set(key, group)
   }
+  // detached HEAD has no branch badge of its own
+  if (headHere && currentBranch === null) groups.set('HEAD', { name: 'HEAD', local: false, remote: false, tag: false, current: true })
   // current branch first, then local branches, remote-only, tags
   const rank = (g: Group): number => (g.current ? 0 : g.local ? 1 : g.remote ? 2 : 3)
   return [...groups.values()].sort((a, b) => rank(a) - rank(b))
@@ -36,7 +38,7 @@ export function RefBadges({ refs, remotes, currentBranch }: { refs: string[]; re
   const groups = groupRefs(refs, remotes, currentBranch)
   if (groups.length === 0) return null
   const [first, ...rest] = groups
-  const color = first.tag ? '#facc15' : branchColor(first.name)
+  const color = first.tag ? '#facc15' : first.name === 'HEAD' && !first.local ? '#fbbf24' : branchColor(first.name)
   return (
     <div className="flex min-w-0 items-center gap-1" title={refs.filter((r) => r !== 'HEAD').join('\n')}>
       <span

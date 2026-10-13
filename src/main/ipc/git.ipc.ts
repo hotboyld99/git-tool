@@ -1,4 +1,6 @@
-import type { DiffRequest, LogOptions, ProgressEvent, ResetMode } from '../../shared/types'
+import { basename, dirname, join } from 'node:path'
+import { dialog, type BrowserWindow } from 'electron'
+import type { DiffRequest, FlowKind, LogOptions, ProgressEvent, RebaseStep, ResetMode } from '../../shared/types'
 import type { GitService } from '../services/git.service'
 import type { RepositoryService } from '../services/repository.service'
 import { bool, handle, int, obj, str, strs } from './handle'
@@ -17,7 +19,20 @@ function logOptions(v: unknown): LogOptions {
   return { skip: int(o.skip, 0, 1e9), limit: int(o.limit, 1, 50_000), search: optionalStr(o.search), author: optionalStr(o.author), ref: optionalStr(o.ref) }
 }
 
-export function registerGitIpc(repos: RepositoryService, git: GitService, sendProgress: (event: ProgressEvent) => void): void {
+function rebaseSteps(v: unknown): RebaseStep[] {
+  if (!Array.isArray(v)) throw new Error('Invalid argument: expected rebase steps.')
+  return v.map((x) => {
+    const o = obj(x)
+    return { hash: str(o.hash), action: str(o.action) as RebaseStep['action'], message: optionalStr(o.message) }
+  })
+}
+
+export function registerGitIpc(
+  repos: RepositoryService,
+  git: GitService,
+  sendProgress: (event: ProgressEvent) => void,
+  getWindow: () => BrowserWindow | null
+): void {
   const path = (id: unknown): string => repos.get(id).path
   const progress = (id: unknown) => (text: string) => sendProgress({ repoId: str(id), text })
 
@@ -50,6 +65,41 @@ export function registerGitIpc(repos: RepositoryService, git: GitService, sendPr
   handle('git:rebase', (id, onto) => git.rebase(path(id), str(onto)))
   handle('git:rebaseContinue', (id) => git.rebaseContinue(path(id)))
   handle('git:rebaseSkip', (id) => git.rebaseSkip(path(id)))
+  handle('git:rebaseCommits', (id, base) => git.rebaseCommits(path(id), str(base)))
+  handle('git:interactiveRebase', (id, base, steps) => git.interactiveRebase(path(id), str(base), rebaseSteps(steps)))
+  handle('git:bisectStart', (id, bad, good) => git.bisectStart(path(id), str(bad), str(good)))
+  handle('git:bisectMark', (id, verdict) => git.bisectMark(path(id), str(verdict) as 'good' | 'bad' | 'skip'))
+
+  handle('git:worktrees', (id) => git.getWorktrees(path(id)))
+  // the folder is chosen here with a native dialog: the renderer never supplies a path to write to
+  handle('git:addWorktree', async (id, branch, createBranch) => {
+    const repo = path(id)
+    const name = str(branch)
+    const win = getWindow()
+    const options = {
+      title: `Create worktree for ${name}`,
+      buttonLabel: 'Create Worktree',
+      defaultPath: join(dirname(repo), `${basename(repo)}-${name.replace(/[\\/]/g, '-')}`)
+    }
+    const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)
+    if (result.canceled || !result.filePath) return null
+    await git.addWorktree(repo, result.filePath, name, bool(createBranch))
+    return result.filePath
+  })
+  handle('git:removeWorktree', (id, worktree, force) => git.removeWorktree(path(id), str(worktree), bool(force)))
+  handle('git:pruneWorktrees', (id) => git.pruneWorktrees(path(id)))
+  handle('git:submodules', (id) => git.getSubmodules(path(id)))
+  handle('git:updateSubmodules', (id, sub) => git.updateSubmodules(path(id), progress(id), optionalStr(sub)))
+  handle('git:lfs', (id) => git.getLfs(path(id)))
+  handle('git:lfsPull', (id) => git.lfsPull(path(id), progress(id)))
+  handle('git:gitFlow', (id) => git.getGitFlow(path(id)))
+  handle('git:gitFlowInit', (id) => git.gitFlowInit(path(id)))
+  handle('git:gitFlowStart', (id, kind, name) => {
+    const k = str(kind)
+    if (!['feature', 'release', 'hotfix'].includes(k)) throw new Error(`Invalid Git Flow branch type: ${k}`)
+    return git.gitFlowStart(path(id), k as FlowKind, str(name))
+  })
+  handle('git:gitFlowFinish', (id, branch) => git.gitFlowFinish(path(id), str(branch)))
   handle('git:cherryPick', (id, hash) => git.cherryPick(path(id), str(hash)))
   handle('git:revert', (id, hash) => git.revert(path(id), str(hash)))
   handle('git:reset', (id, hash, mode) => git.reset(path(id), str(hash), str(mode) as ResetMode))

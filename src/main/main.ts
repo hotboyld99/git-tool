@@ -83,7 +83,7 @@ app.whenReady().then(() => {
   const send = (channel: string, payload: unknown): void => mainWindow?.webContents.send(channel, payload)
 
   registerRepositoryIpc(repos, () => mainWindow, (event) => send('repo:changed', event))
-  registerGitIpc(repos, git, (event) => send('git:progress', event))
+  registerGitIpc(repos, git, (event) => send('git:progress', event), () => mainWindow)
   registerFilesystemIpc(repos, () => mainWindow)
 
   createMenu()

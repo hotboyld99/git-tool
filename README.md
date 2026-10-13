@@ -78,6 +78,14 @@ macOS, Windows, Linux. Paths go through `node:path`, Git is spawned directly (no
 - Blame view (per-line commit, author, date; click a hash to open the commit)
 - Remotes: add, edit URL, remove, fetch one remote, push the current branch to a specific remote
 - Open the repository in VS Code (`vscode://` URL handler, no `code` CLI needed), in the system terminal, or the file manager
+- Interactive rebase: pick / reword / squash / fixup / drop and reorder in a dialog; no editor is opened
+  (the todo list and reworded messages are written by the app, merges in the range are reported)
+- Bisect: start from a commit (good) to HEAD (bad), mark Good / Bad / Skip from the banner, jump to the result
+- Worktrees: list, add (folder chosen with a native dialog, opened as a new tab), remove, prune
+- Submodules: status, initialize / update (recursive), open as a tab
+- Git LFS: tracked patterns, missing objects, `git lfs pull` (shown when git-lfs is installed and used)
+- Git Flow without the git-flow extension: initialize, start / finish feature, release and hotfix
+  (release / hotfix finish merges into main, tags the version and merges back into develop; uses `gitflow.*` config)
 - Settings: custom Git executable (chosen through the native file picker and verified with `--version`)
 - History: search by message or hash, author filter, branch filter; keyboard navigation (↑/↓),
   hover highlighting, selected commit scrolled into view
@@ -144,6 +152,7 @@ so scroll position and selection survive a refresh.
   file names cannot inject commands. Refs, hashes and stash names are validated; file arguments follow `--`.
 - A custom Git executable can only be chosen through the native file picker in the main process, never set
   from a path sent by the renderer, and it must identify itself as Git.
+- No embedded terminal: it would hand the renderer a live shell. "Open in Terminal" launches the system terminal instead.
 - `GIT_TERMINAL_PROMPT=0` prevents hidden credential prompts from hanging the app; credential helpers and ssh-agent still work.
 - Destructive operations (discard, delete untracked file, drop stash, force delete branch) always require confirmation;
   nothing uses `--force` / `-D` / `git clean` without the user asking for it.

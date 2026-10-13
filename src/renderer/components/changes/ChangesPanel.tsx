@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeftToLine, ArrowRightToLine, Check, Minus, Plus, Undo2 } from 'lucide-react'
+import { ArrowLeftToLine, ArrowRightToLine, Check, Minus, Plus, Undo2 } from 'lucide-react'
 import type { GitFileStatus, RepositoryId } from '../../../shared/types'
 import { selectFile, useRepo } from '../../stores/repository.store'
 import { actions } from '../../stores/git.store'
@@ -9,9 +9,6 @@ import { FileChangeList } from './FileChangeList'
 
 const headerButton = 'rounded px-1.5 py-0.5 text-[11px] text-muted hover:bg-hover hover:text-fg'
 
-const bannerButton = 'rounded border border-warn/40 px-2 py-0.5 hover:bg-warn/20 disabled:opacity-40'
-
-const OPERATION_LABEL = { merge: 'Merge', 'cherry-pick': 'Cherry-pick', revert: 'Revert', rebase: 'Rebase' }
 
 export function ChangesPanel({ id }: { id: RepositoryId }) {
   const { status, selectedFile } = useRepo(id)
@@ -60,32 +57,6 @@ export function ChangesPanel({ id }: { id: RepositoryId }) {
           {status.branch && <span className="text-muted"> on {status.branch}</span>}
         </span>
       </div>
-      {status.operation && (
-        <div className="flex items-center gap-2 border-b border-warn/30 bg-warn/10 px-3 py-2 text-warn">
-          <AlertTriangle size={14} className="shrink-0" />
-          <span className="flex-1">
-            {OPERATION_LABEL[status.operation]} in progress —{' '}
-            {conflictedFiles.length > 0
-              ? `resolve ${conflictedFiles.length} conflict${conflictedFiles.length === 1 ? '' : 's'}, then ${status.operation === 'rebase' ? 'continue' : 'commit'}.`
-              : status.operation === 'rebase'
-                ? 'continue to replay the next commit.'
-                : 'commit to finish.'}
-          </span>
-          {status.operation === 'rebase' && (
-            <>
-              <button className={bannerButton} disabled={conflictedFiles.length > 0} onClick={() => void actions.rebaseContinue(id)}>
-                Continue
-              </button>
-              <button className={bannerButton} onClick={() => actions.rebaseSkip(id)}>
-                Skip
-              </button>
-            </>
-          )}
-          <button className={bannerButton} onClick={() => actions.abortOperation(id)}>
-            Abort
-          </button>
-        </div>
-      )}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {conflictedFiles.length > 0 && (
           <FileChangeList

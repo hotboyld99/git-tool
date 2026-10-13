@@ -19,6 +19,9 @@ export type Dialog =
   | { type: 'reset'; repoId: RepositoryId; hash: string; label: string; branch: string }
   | { type: 'remote'; repoId: RepositoryId; name?: string; url?: string }
   | { type: 'settings' }
+  | { type: 'interactiveRebase'; repoId: RepositoryId; base: string; label: string }
+  | { type: 'flowStart'; repoId: RepositoryId; kind: 'feature' | 'release' | 'hotfix' }
+  | { type: 'worktree'; repoId: RepositoryId }
 
 interface UiState {
   sidebarWidth: number

@@ -4,6 +4,7 @@ import { select, useRepo } from '../../stores/repository.store'
 import { BranchTree } from '../branches/BranchTree'
 import { StashList } from '../stash/StashList'
 import { TagList } from '../branches/TagList'
+import { LfsSection, SubmoduleList, WorktreeList } from './WorkspaceExtras'
 import { SidebarItem, SidebarSection } from './SidebarSection'
 
 export function RepositorySidebar({ id }: { id: RepositoryId }) {
@@ -23,6 +24,9 @@ export function RepositorySidebar({ id }: { id: RepositoryId }) {
       <BranchTree id={id} />
       <TagList id={id} />
       <StashList id={id} />
+      <WorktreeList id={id} />
+      <SubmoduleList id={id} />
+      <LfsSection id={id} />
     </div>
   )
 }

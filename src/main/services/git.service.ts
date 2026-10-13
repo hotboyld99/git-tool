@@ -1,10 +1,18 @@
 import { existsSync, readFileSync } from 'node:fs'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type {
   ChangedFile,
   DiffRequest,
   FileBlame,
   FileDiff,
+  FlowKind,
+  GitFlowConfig,
+  GitSubmodule,
+  GitWorktree,
+  LfsInfo,
+  RebaseStep,
   GitBranch,
   GitCommit,
   GitRemote,
@@ -15,15 +23,16 @@ import type {
   RepoOperation,
   ResetMode
 } from '../../shared/types'
-import { GitCommandError, runGit } from '../git/executor'
+import { GitCommandError, getGitExecutable, runGit } from '../git/executor'
 import { STATUS_ARGS, parseStatus } from '../git/status'
 import { BRANCH_ARGS, TAG_ARGS, parseBranches, parseTags } from '../git/branch'
-import { logArgs, parseLog, showArgs } from '../git/log'
+import { logArgs, parseLog, rangeArgs, showArgs } from '../git/log'
 import { parseDiff } from '../git/diff'
 import { commitFilesArgs, parseNameStatus } from '../git/commit'
 import { parseRemotes } from '../git/remote'
 import { STASH_LIST_ARGS, parseStashes } from '../git/stash'
 import { blameArgs, parseBlame } from '../git/blame'
+import { parseLfs, parseSubmodules, parseWorktrees } from '../git/extras'
 
 type Output = (text: string) => void
 
@@ -48,8 +57,19 @@ const OPERATION_MARKERS: [string, RepoOperation][] = [
   ['rebase-apply', 'rebase'],
   ['CHERRY_PICK_HEAD', 'cherry-pick'],
   ['REVERT_HEAD', 'revert'],
-  ['MERGE_HEAD', 'merge']
+  ['MERGE_HEAD', 'merge'],
+  ['BISECT_LOG', 'bisect']
 ]
+
+const REBASE_ACTIONS = ['pick', 'reword', 'squash', 'fixup', 'drop']
+
+/** Quotes for the POSIX shell Git runs editors and `exec` lines with (also Git for Windows' sh). */
+const shellQuote = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`
+
+// editors are never opened: "true" keeps the message Git prepared (also a builtin of Git for Windows' sh)
+const NO_EDITOR = { GIT_EDITOR: 'true' }
+
+const FLOW_DEFAULTS = { feature: 'feature/', release: 'release/', hotfix: 'hotfix/', versionTag: '' }
 
 function assertUrl(url: string): string {
   if (!url.trim() || url.startsWith('-') || /[\0\n]/.test(url)) throw new Error(`Invalid remote URL: "${url}"`)
@@ -242,9 +262,166 @@ export class GitService {
     await runGit(repo, ['rebase', assertRef(onto)], { timeout: 0 })
   }
 
-  /** core.editor=true keeps each commit's message instead of opening an editor. */
   async rebaseContinue(repo: string): Promise<void> {
-    await runGit(repo, ['-c', 'core.editor=true', 'rebase', '--continue'], { timeout: 0 })
+    await runGit(repo, ['rebase', '--continue'], { timeout: 0, env: NO_EDITOR })
+  }
+
+  async rebaseCommits(repo: string, base: string): Promise<{ commits: GitCommit[]; merges: number }> {
+    assertHash(base)
+    await runGit(repo, ['merge-base', '--is-ancestor', base, 'HEAD']).catch(() => {
+      throw new Error('The selected commit is not an ancestor of the current branch.')
+    })
+    const [log, merges] = await Promise.all([
+      runGit(repo, rangeArgs(`${base}..HEAD`)),
+      runGit(repo, ['rev-list', '--merges', '--count', `${base}..HEAD`])
+    ])
+    return { commits: parseLog(log), merges: Number(merges.trim()) }
+  }
+
+  /**
+   * Runs `git rebase -i <base>` with our own todo list: the sequence editor just copies the prepared file.
+   * Reworded messages are applied with `exec git commit --amend -F <file>` so no editor is ever needed.
+   */
+  async interactiveRebase(repo: string, base: string, steps: RebaseStep[]): Promise<void> {
+    assertHash(base)
+    if (steps.length === 0) throw new Error('Nothing to rebase.')
+    const dir = await mkdtemp(join(tmpdir(), 'git-tool-rebase-'))
+    const todo: string[] = []
+    for (const [i, step] of steps.entries()) {
+      if (!REBASE_ACTIONS.includes(step.action)) throw new Error(`Invalid rebase action: ${step.action}`)
+      assertHash(step.hash)
+      if (step.action !== 'reword') {
+        todo.push(`${step.action} ${step.hash}`)
+        continue
+      }
+      if (!step.message?.trim()) throw new Error('A reworded commit needs a message.')
+      const messageFile = join(dir, `message-${i}.txt`)
+      await writeFile(messageFile, step.message.trim() + '\n')
+      todo.push(`pick ${step.hash}`, `exec ${shellQuote(getGitExecutable())} commit --amend --allow-empty --quiet -F ${shellQuote(messageFile)}`)
+    }
+    const todoFile = join(dir, 'todo')
+    await writeFile(todoFile, todo.join('\n') + '\n')
+    await runGit(repo, ['rebase', '-i', base], {
+      timeout: 0,
+      env: { ...NO_EDITOR, GIT_SEQUENCE_EDITOR: `cp ${shellQuote(todoFile)}` }
+    })
+    // ponytail: on conflicts the temp dir stays (later exec lines still need the message files); the OS cleans tmp
+    await rm(dir, { recursive: true, force: true })
+  }
+
+  async bisectStart(repo: string, bad: string, good: string): Promise<string> {
+    return (await runGit(repo, ['bisect', 'start', assertHash(bad), assertHash(good), '--'])).trim()
+  }
+
+  async bisectMark(repo: string, verdict: 'good' | 'bad' | 'skip'): Promise<string> {
+    if (!['good', 'bad', 'skip'].includes(verdict)) throw new Error(`Invalid bisect verdict: ${verdict}`)
+    return (await runGit(repo, ['bisect', verdict])).trim()
+  }
+
+  async getWorktrees(repo: string): Promise<GitWorktree[]> {
+    return parseWorktrees(await runGit(repo, ['worktree', 'list', '--porcelain']))
+  }
+
+  async addWorktree(repo: string, path: string, branch: string, createBranch: boolean): Promise<void> {
+    assertRef(branch)
+    await runGit(repo, createBranch ? ['worktree', 'add', '-b', branch, '--', path] : ['worktree', 'add', '--', path, branch])
+  }
+
+  /** Only paths Git lists as (non-main) worktrees of this repository can be removed. */
+  async removeWorktree(repo: string, path: string, force: boolean): Promise<void> {
+    const worktree = (await this.getWorktrees(repo)).find((w) => w.path === path)
+    if (!worktree || worktree.isMain) throw new Error('Not a linked worktree of this repository.')
+    await runGit(repo, ['worktree', 'remove', ...(force ? ['--force'] : []), '--', path])
+  }
+
+  async pruneWorktrees(repo: string): Promise<void> {
+    await runGit(repo, ['worktree', 'prune'])
+  }
+
+  async getSubmodules(repo: string): Promise<GitSubmodule[]> {
+    if (!existsSync(join(repo, '.gitmodules'))) return []
+    return parseSubmodules(await runGit(repo, ['submodule', 'status']))
+  }
+
+  updateSubmodules(repo: string, onOutput: Output, path?: string): Promise<void> {
+    return this.runNetwork(repo, ['submodule', 'update', '--init', '--recursive', '--progress', ...(path ? ['--', path] : [])], onOutput)
+  }
+
+  async getLfs(repo: string): Promise<LfsInfo> {
+    const version = await runGit(repo, ['lfs', 'version']).catch(() => null)
+    if (!version) return { installed: false, patterns: [], files: [] }
+    const [track, files] = await Promise.all([runGit(repo, ['lfs', 'track']), runGit(repo, ['lfs', 'ls-files'])])
+    return { installed: true, version: version.trim(), ...parseLfs(track, files) }
+  }
+
+  lfsPull(repo: string, onOutput: Output): Promise<void> {
+    return this.runNetwork(repo, ['lfs', 'pull'], onOutput)
+  }
+
+  /** Git Flow implemented with plain Git (no git-flow extension needed), using the same `gitflow.*` config keys. */
+  async getGitFlow(repo: string): Promise<GitFlowConfig | null> {
+    const config = await runGit(repo, ['config', '--get-regexp', '^gitflow\\.'], { okExitCodes: [0, 1] })
+    const get = (key: string): string | undefined => config.split('\n').find((l) => l.startsWith(`gitflow.${key} `))?.slice(key.length + 9)
+    const develop = get('branch.develop')
+    const main = get('branch.master')
+    if (!develop || !main) return null
+    return {
+      main,
+      develop,
+      feature: get('prefix.feature') ?? FLOW_DEFAULTS.feature,
+      release: get('prefix.release') ?? FLOW_DEFAULTS.release,
+      hotfix: get('prefix.hotfix') ?? FLOW_DEFAULTS.hotfix,
+      versionTag: get('prefix.versiontag') ?? FLOW_DEFAULTS.versionTag
+    }
+  }
+
+  async gitFlowInit(repo: string): Promise<void> {
+    const local = (await this.getBranches(repo)).filter((b) => !b.isRemote).map((b) => b.name)
+    const main = ['main', 'master'].find((b) => local.includes(b))
+    if (!main) throw new Error('Git Flow needs a "main" or "master" branch.')
+    if (!local.includes('develop')) await runGit(repo, ['branch', 'develop', main])
+    const values: [string, string][] = [
+      ['branch.master', main],
+      ['branch.develop', 'develop'],
+      ['prefix.feature', FLOW_DEFAULTS.feature],
+      ['prefix.release', FLOW_DEFAULTS.release],
+      ['prefix.hotfix', FLOW_DEFAULTS.hotfix],
+      ['prefix.support', 'support/'],
+      ['prefix.versiontag', FLOW_DEFAULTS.versionTag]
+    ]
+    for (const [key, value] of values) await runGit(repo, ['config', `gitflow.${key}`, value])
+  }
+
+  async gitFlowStart(repo: string, kind: FlowKind, name: string): Promise<void> {
+    const flow = await this.requireFlow(repo)
+    const branch = `${flow[kind]}${name.trim()}`
+    await runGit(repo, ['check-ref-format', '--branch', assertRef(branch)])
+    await runGit(repo, ['switch', '-c', branch, kind === 'hotfix' ? flow.main : flow.develop])
+  }
+
+  /**
+   * feature: merge into develop. release/hotfix: merge into main, tag the version, merge into develop.
+   * Then delete the branch. Each step is safe to re-run after resolving a conflict (merges of already merged
+   * branches are no-ops and an existing tag is kept).
+   */
+  async gitFlowFinish(repo: string, branch: string): Promise<void> {
+    const flow = await this.requireFlow(repo)
+    assertRef(branch)
+    const kind = (['feature', 'release', 'hotfix'] as const).find((k) => branch.startsWith(flow[k]))
+    if (!kind) throw new Error(`"${branch}" is not a Git Flow feature, release or hotfix branch.`)
+    const merge = async (target: string): Promise<void> => {
+      await runGit(repo, ['switch', target])
+      await runGit(repo, ['merge', '--no-ff', '--no-edit', branch], { timeout: 0 })
+    }
+    if (kind !== 'feature') {
+      const version = branch.slice(flow[kind].length)
+      const tag = `${flow.versionTag}${version}`
+      await merge(flow.main)
+      const tagged = await runGit(repo, ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}`]).then(() => true, () => false)
+      if (!tagged) await runGit(repo, ['tag', '-a', tag, '-m', `${kind === 'release' ? 'Release' : 'Hotfix'} ${version}`])
+    }
+    await merge(flow.develop)
+    await runGit(repo, ['branch', '-d', branch])
   }
 
   async rebaseSkip(repo: string): Promise<void> {
@@ -267,8 +444,8 @@ export class GitService {
 
   async abortOperation(repo: string): Promise<void> {
     const { operation } = await this.status(repo)
-    if (!operation) throw new Error('No merge, cherry-pick, revert or rebase is in progress.')
-    await runGit(repo, [operation, '--abort'])
+    if (!operation) throw new Error('No merge, cherry-pick, revert, rebase or bisect is in progress.')
+    await runGit(repo, operation === 'bisect' ? ['bisect', 'reset'] : [operation, '--abort'])
   }
 
   /** Takes our/their whole version of conflicted files and marks them resolved. */
@@ -352,6 +529,12 @@ export class GitService {
 
   async dropStash(repo: string, ref: string): Promise<void> {
     await runGit(repo, ['stash', 'drop', assertStash(ref)])
+  }
+
+  private async requireFlow(repo: string): Promise<GitFlowConfig> {
+    const flow = await this.getGitFlow(repo)
+    if (!flow) throw new Error('Git Flow is not initialized in this repository.')
+    return flow
   }
 
   private async defaultRemote(repo: string): Promise<string> {

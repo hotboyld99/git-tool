@@ -15,6 +15,14 @@ export function logArgs({ skip, limit, search, author, ref }: LogOptions): strin
   return [...args, `--skip=${skip}`, `-n${limit}`, '--']
 }
 
+/**
+ * Non-merge commits of `range` (e.g. "base..HEAD"), parents before children — the order of a rebase todo.
+ * --topo-order matters: with equal commit dates plain `--reverse` can list a child before its parent.
+ */
+export function rangeArgs(range: string): string[] {
+  return ['log', '--reverse', '--topo-order', '--no-merges', '-z', `--format=${FORMAT}`, range, '--']
+}
+
 /** Single commit lookup (search by hash). */
 export function showArgs(rev: string): string[] {
   return ['log', '-1', '-z', `--format=${FORMAT}`, rev, '--']

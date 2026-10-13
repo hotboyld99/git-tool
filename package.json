@@ -59,6 +59,7 @@
     ],
     "mac": {
       "target": "dmg",
+      "identity": "Electron Local Code Signing",
       "category": "public.app-category.developer-tools"
     },
     "win": {
