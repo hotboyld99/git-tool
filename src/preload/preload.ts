@@ -82,6 +82,7 @@ const git: GitApi = {
 const repo: RepoApi = {
   openDialog: invoke('repo:openDialog'),
   open: invoke('repo:open'),
+  init: invoke('repo:init'),
   close: invoke('repo:close'),
   setActive: invoke('repo:setActive'),
   session: invoke('repo:session'),

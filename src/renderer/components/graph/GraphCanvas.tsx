@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react'
 import type { GraphNode } from '../../utils/graph'
 
-export const LANE_WIDTH = 14
-const PADDING = 6
+export const LANE_WIDTH = 22
+const PADDING = 10
 const laneX = (lane: number): number => PADDING + lane * LANE_WIDTH + LANE_WIDTH / 2
 
 /** Draws one row of the commit graph: its edge segments and the commit node. */
@@ -26,7 +26,7 @@ export function GraphCanvas({ node, width, height, highlight }: { node: GraphNod
       const x1 = laneX(edge.fromLane)
       const x2 = laneX(edge.toLane)
       ctx.strokeStyle = edge.color
-      ctx.lineWidth = highlight && edge.part !== 'full' ? 3.5 : 2
+      ctx.lineWidth = 2
       ctx.beginPath()
       if (edge.part === 'full') {
         ctx.moveTo(x1, 0)
@@ -46,7 +46,7 @@ export function GraphCanvas({ node, width, height, highlight }: { node: GraphNod
     }
 
     ctx.beginPath()
-    ctx.arc(laneX(node.lane), mid, (node.isMerge ? 3.5 : 5) + (highlight ? 1.5 : 0), 0, Math.PI * 2)
+    ctx.arc(laneX(node.lane), mid, (node.isMerge ? 4.5 : 5) + (highlight ? 1.5 : 0), 0, Math.PI * 2)
     ctx.fillStyle = node.color
     ctx.fill()
     ctx.lineWidth = 2

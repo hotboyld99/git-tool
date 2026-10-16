@@ -58,7 +58,7 @@ export function CommitGraph({ id }: { id: RepositoryId }) {
         <div className="shrink-0 px-1.5" style={{ width }}>
           Graph
         </div>
-        <div className="flex-1 pl-2">Commit message</div>
+        <div className="flex-1 pl-3">Commit message</div>
         <div className="w-36 shrink-0 px-2">Author</div>
         <div className="flex w-32 shrink-0 items-center gap-1 px-2">Date {loading.log && <Spinner size={10} />}</div>
       </div>

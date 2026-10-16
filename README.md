@@ -57,7 +57,10 @@ macOS, Windows, Linux. Paths go through `node:path`, Git is spawned directly (no
 ## Features
 
 - Open repositories (native folder picker, `.git` validation), multiple repository tabs with branch + dirty indicator,
-  session restore and recent repositories
+  recent repositories. Picking a folder without Git explains why and offers to open the repository it belongs to,
+  `git init` it, or choose another folder
+- Session restore: open tabs, the active tab, window size / position and, per repository, the selected commit or stash,
+  the open diff, history filters and the unfinished commit message
 - Working tree: unstaged / staged / merge-conflict sections, stage, unstage, stage all, unstage all,
   discard (with confirmation; untracked files get an explicit delete warning)
 - Diff viewer: unified / split, ignore whitespace, copy, syntax highlighting, virtualized for large files

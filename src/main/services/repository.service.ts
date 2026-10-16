@@ -10,10 +10,14 @@ import type { RepositoryId, RepositoryInfo } from '../../shared/types'
 export class RepositoryService {
   private repos = new Map<RepositoryId, RepositoryInfo>()
 
+  /** `.git` is a directory for normal repositories and a file for worktrees/submodules */
+  static isRepository(folder: string): boolean {
+    return existsSync(join(resolve(folder), '.git'))
+  }
+
   register(folder: string): RepositoryInfo {
     const path = resolve(folder)
-    // `.git` is a directory for normal repositories and a file for worktrees/submodules
-    if (!existsSync(join(path, '.git'))) throw new Error('This folder is not a Git repository.')
+    if (!RepositoryService.isRepository(path)) throw new Error('This folder is not a Git repository.')
     const id = createHash('sha1').update(path).digest('hex').slice(0, 12)
     const repo = { id, path, name: basename(path) }
     this.repos.set(id, repo)

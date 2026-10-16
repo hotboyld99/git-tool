@@ -8,7 +8,7 @@ import { formatDate } from '../../utils/format'
 import { GraphCanvas } from './GraphCanvas'
 import { RefBadges } from './RefBadges'
 
-export const ROW_HEIGHT = 28
+export const ROW_HEIGHT = 36
 
 interface Props {
   repoId: RepositoryId
@@ -71,7 +71,7 @@ export const CommitRow = memo(function CommitRow({ repoId, commit, node, graphWi
         <RefBadges refs={commit.refs} remotes={remotes} currentBranch={currentBranch} />
       </div>
       <GraphCanvas node={node} width={graphWidth} height={ROW_HEIGHT} highlight={hovered || selected} />
-      <div className={`min-w-0 flex-1 truncate pl-2 ${node.isMerge ? 'text-muted' : ''}`}>{commit.subject}</div>
+      <div className={`min-w-0 flex-1 truncate pl-3 text-[13px] ${node.isMerge ? 'text-muted' : ''}`}>{commit.subject}</div>
       <div className="w-36 shrink-0 truncate px-2 text-muted">{commit.authorName}</div>
       <div className="w-32 shrink-0 px-2 font-mono text-[11px] text-muted">{formatDate(commit.date)}</div>
     </div>

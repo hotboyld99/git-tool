@@ -11,11 +11,13 @@ interface Props {
   /** button focused on open; form dialogs leave it unset and focus their first input */
   initialFocus?: 'confirm' | 'cancel'
   wide?: boolean
+  /** extra buttons shown left of Cancel */
+  secondary?: ReactNode
   onConfirm: () => void
 }
 
 /** Modal form: Enter submits, Escape / Cancel closes. */
-export function Modal({ title, children, confirmLabel, danger, disabled, initialFocus, wide, onConfirm }: Props) {
+export function Modal({ title, children, confirmLabel, danger, disabled, initialFocus, wide, secondary, onConfirm }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') closeDialog()
@@ -35,6 +37,7 @@ export function Modal({ title, children, confirmLabel, danger, disabled, initial
         <div className="border-b border-line px-4 py-3 text-[13px] font-semibold">{title}</div>
         <div className="space-y-3 px-4 py-4">{children}</div>
         <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
+          {secondary}
           <Button type="button" onClick={closeDialog} autoFocus={initialFocus === 'cancel'}>
             Cancel
           </Button>

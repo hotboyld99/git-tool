@@ -22,6 +22,7 @@ export type Dialog =
   | { type: 'interactiveRebase'; repoId: RepositoryId; base: string; label: string }
   | { type: 'flowStart'; repoId: RepositoryId; kind: 'feature' | 'release' | 'hotfix' }
   | { type: 'worktree'; repoId: RepositoryId }
+  | { type: 'notRepository'; path: string; root: string | null; canInit: boolean }
 
 interface UiState {
   sidebarWidth: number

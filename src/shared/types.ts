@@ -203,6 +203,19 @@ export interface GitError {
 
 export type Result<T> = { ok: true; data: T } | { ok: false; error: GitError }
 
+/** Opening a folder either registers the repository or reports why it is not one. */
+export type OpenResult =
+  | { repo: RepositoryInfo }
+  | {
+      notRepository: {
+        path: string
+        /** repository the folder is inside of (a sub folder was picked), if any */
+        root: string | null
+        /** only folders picked in the native dialog may be initialized */
+        canInit: boolean
+      }
+    }
+
 export interface Session {
   opened: RepositoryInfo[]
   activeId: RepositoryId | null
@@ -295,8 +308,10 @@ export interface GitApi {
 
 export interface RepoApi {
   /** data is null when the user cancelled the picker */
-  openDialog(): Promise<Result<RepositoryInfo | null>>
-  open(path: string): Promise<Result<RepositoryInfo>>
+  openDialog(): Promise<Result<OpenResult | null>>
+  open(path: string): Promise<Result<OpenResult>>
+  /** `git init` in a folder previously reported as notRepository, then opens it */
+  init(path: string): Promise<Result<RepositoryInfo>>
   close(id: RepositoryId): Promise<Result<void>>
   setActive(id: RepositoryId | null): Promise<Result<void>>
   session(): Promise<Result<Session>>

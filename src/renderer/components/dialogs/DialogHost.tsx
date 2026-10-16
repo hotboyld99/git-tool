@@ -9,6 +9,7 @@ import { SettingsDialog } from './SettingsDialog'
 import { InteractiveRebaseDialog } from './InteractiveRebaseDialog'
 import { FlowStartDialog } from './FlowStartDialog'
 import { WorktreeDialog } from './WorktreeDialog'
+import { NotRepositoryDialog } from './NotRepositoryDialog'
 
 export function DialogHost() {
   const dialog = useUi((s) => s.dialog)
@@ -33,6 +34,8 @@ export function DialogHost() {
       return <FlowStartDialog dialog={dialog} />
     case 'worktree':
       return <WorktreeDialog dialog={dialog} />
+    case 'notRepository':
+      return <NotRepositoryDialog dialog={dialog} />
     default:
       return null
   }

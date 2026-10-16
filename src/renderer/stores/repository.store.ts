@@ -10,25 +10,16 @@ import type {
   GitStash,
   GitStatus,
   GitTag,
+  OpenResult,
   RepoChangedEvent,
   RepositoryId,
   RepositoryInfo,
   Result
 } from '../../shared/types'
-import { showError } from './ui.store'
+import { openDialog, showError } from './ui.store'
+import { loadWorkspace, saveWorkspace, type HistoryFilter, type SelectedFile, type Selection } from '../utils/workspace'
 
-export type Selection = { type: 'changes' } | { type: 'commit'; hash: string } | { type: 'stash'; ref: string; hash: string }
-
-export type SelectedFile =
-  | { source: 'working'; path: string; staged: boolean; untracked: boolean; conflicted?: boolean }
-  | { source: 'commit'; hash: string; path: string }
-
-export interface HistoryFilter {
-  search: string
-  author: string
-  /** '' = all branches */
-  ref: string
-}
+export type { HistoryFilter, SelectedFile, Selection }
 
 export type LoadingKey = 'status' | 'log' | 'fetching' | 'pulling' | 'pushing' | 'committing'
 
@@ -231,9 +222,21 @@ function emptyRepo(info: RepositoryInfo): RepositoryState {
   }
 }
 
+/** New tabs start from the repository's saved workspace (selection, open diff, filters, commit draft). */
 function addTab(info: RepositoryInfo): void {
-  useRepos.setState((s) => (s.repos[info.id] ? s : { order: [...s.order, info.id], repos: { ...s.repos, [info.id]: emptyRepo(info) } }))
+  useRepos.setState((s) =>
+    s.repos[info.id] ? s : { order: [...s.order, info.id], repos: { ...s.repos, [info.id]: { ...emptyRepo(info), ...loadWorkspace(info.path) } } }
+  )
 }
+
+// remember each repository's workspace shortly after it changes, and right away when the window closes
+const saveAll = (): void => Object.values(useRepos.getState().repos).forEach(saveWorkspace)
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+useRepos.subscribe(() => {
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(saveAll, 400)
+})
+window.addEventListener('beforeunload', saveAll)
 
 export function activate(id: RepositoryId | null): void {
   useRepos.setState({ activeId: id })
@@ -257,18 +260,32 @@ export async function initSession(): Promise<void> {
   await Promise.all(repos.map((r) => refreshAll(r.id)))
 }
 
+function handleOpen(result: OpenResult): void {
+  if ('repo' in result) opened(result.repo)
+  else openDialog({ type: 'notRepository', ...result.notRepository })
+}
+
 export async function openRepositoryDialog(): Promise<void> {
   const result = await window.repo.openDialog()
   if (!result.ok) showError(result.error)
-  else if (result.data) opened(result.data)
+  else if (result.data) handleOpen(result.data)
 }
 
 export async function openRepositoryPath(path: string): Promise<void> {
   const result = await window.repo.open(path)
+  if (result.ok) return handleOpen(result.data)
+  showError(result.error)
+  useRepos.setState((s) => ({ recent: s.recent.filter((p) => p !== path) }))
+}
+
+export async function initRepository(path: string): Promise<boolean> {
+  const result = await window.repo.init(path)
   if (!result.ok) {
     showError(result.error)
-    useRepos.setState((s) => ({ recent: s.recent.filter((p) => p !== path) }))
-  } else opened(result.data)
+    return false
+  }
+  opened(result.data)
+  return true
 }
 
 export async function closeRepository(id: RepositoryId): Promise<void> {
