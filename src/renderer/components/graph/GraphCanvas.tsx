@@ -3,6 +3,8 @@ import type { GraphNode } from '../../utils/graph'
 
 export const LANE_WIDTH = 22
 const PADDING = 10
+/** corner radius where a line turns between lanes: small = squarer bends */
+const CORNER = 12
 const laneX = (lane: number): number => PADDING + lane * LANE_WIDTH + LANE_WIDTH / 2
 
 /** Draws one row of the commit graph: its edge segments and the commit node. */
@@ -34,13 +36,13 @@ export function GraphCanvas({ node, width, height, highlight }: { node: GraphNod
       } else if (edge.part === 'top') {
         // child line coming down from lane x1, bending into the node
         ctx.moveTo(x1, 0)
-        if (x1 === x2) ctx.lineTo(x2, mid)
-        else ctx.quadraticCurveTo(x1, mid, x2, mid)
+        if (x1 !== x2) ctx.arcTo(x1, mid, x2, mid, CORNER)
+        ctx.lineTo(x2, mid)
       } else {
         // line leaving the node towards a parent lane, bending down
         ctx.moveTo(x1, mid)
-        if (x1 === x2) ctx.lineTo(x2, height)
-        else ctx.quadraticCurveTo(x2, mid, x2, height)
+        if (x1 !== x2) ctx.arcTo(x2, mid, x2, height, CORNER)
+        ctx.lineTo(x2, height)
       }
       ctx.stroke()
     }

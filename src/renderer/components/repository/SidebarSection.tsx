@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import { useState, type ComponentType, type CSSProperties, type DOMAttributes, type MouseEvent, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 interface SectionProps {
@@ -41,11 +41,14 @@ interface ItemProps {
   onClick?: () => void
   onDoubleClick?: () => void
   onContextMenu?: (e: MouseEvent) => void
+  /** drag & drop handlers (and `draggable`) passed straight to the row */
+  dnd?: DOMAttributes<HTMLDivElement> & { draggable?: boolean }
 }
 
-export function SidebarItem({ icon: Icon, label, title, color, active, bold, indent = 0, right, onClick, onDoubleClick, onContextMenu }: ItemProps) {
+export function SidebarItem({ icon: Icon, label, title, color, active, bold, indent = 0, right, onClick, onDoubleClick, onContextMenu, dnd }: ItemProps) {
   return (
     <div
+      {...dnd}
       title={title}
       onClick={onClick}
       onDoubleClick={onDoubleClick}

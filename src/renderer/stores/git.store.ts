@@ -200,13 +200,19 @@ export const actions = {
     })
   },
 
-  merge(id: RepositoryId, branch: string): void {
+  /** merges `branch` into `into` (default: the current branch), checking `into` out first when needed */
+  merge(id: RepositoryId, branch: string, into?: string): void {
     const current = getRepo(id)?.status?.branch ?? 'HEAD'
+    const target = into ?? current
+    const switching = target !== current
     confirm({
       title: 'Merge branch',
-      message: `Merge "${branch}" into "${current}"?`,
+      message: switching ? `Checkout "${target}" and merge "${branch}" into it?` : `Merge "${branch}" into "${target}"?`,
       confirmLabel: 'Merge',
-      onConfirm: () => void run(id, `Merge ${branch} into ${current}`, () => window.git.merge(id, branch), { refresh: ['worktree', 'refs', 'history'] })
+      onConfirm: async () => {
+        if (switching && !(await actions.checkout(id, target)).ok) return
+        void run(id, `Merge ${branch} into ${target}`, () => window.git.merge(id, branch), { refresh: ['worktree', 'refs', 'history'] })
+      }
     })
   },
 

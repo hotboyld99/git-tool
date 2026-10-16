@@ -26,5 +26,10 @@ export function ResizeHandle({ value, min, max, onChange, invert }: Props) {
     window.addEventListener('mouseup', up)
     document.body.style.cursor = 'col-resize'
   }
-  return <div onMouseDown={onMouseDown} className="w-px shrink-0 cursor-col-resize bg-line outline-2 outline-transparent hover:bg-accent hover:outline-accent/40" />
+  // the visible line is 1px; the invisible child widens the grab area to 9px
+  return (
+    <div className="group relative z-10 w-px shrink-0 bg-line hover:bg-accent">
+      <div onMouseDown={onMouseDown} className="absolute inset-y-0 -right-1 -left-1 cursor-col-resize group-hover:bg-accent/30" />
+    </div>
+  )
 }

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, type DragEvent, type ReactNode } from 'react'
 import { Check, Cloud, Folder, FolderOpen, GitBranch, Plus, Server } from 'lucide-react'
 import type { GitBranch as Branch, GitRemote, RepositoryId } from '../../../shared/types'
 import { getRepo, select, useRepo } from '../../stores/repository.store'
@@ -97,6 +97,37 @@ export function BranchTree({ id }: { id: RepositoryId }) {
   const { branches, remotes, selection } = useRepo(id)
   const local = branches.filter((b) => !b.isRemote)
   const isSelected = (b: Branch): boolean => selection.type === 'commit' && selection.hash === b.hash
+  // drag a branch onto a local branch to merge it there
+  const [dragging, setDragging] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const dragSource = (b: Branch) => ({
+    draggable: true,
+    onDragStart: (e: DragEvent) => {
+      e.dataTransfer.effectAllowed = 'move'
+      setDragging(b.name)
+    },
+    onDragEnd: () => {
+      setDragging(null)
+      setDropTarget(null)
+    }
+  })
+  const dropZone = (b: Branch) => ({
+    ...dragSource(b),
+    onDragOver: (e: DragEvent) => {
+      if (!dragging || dragging === b.name) return
+      e.preventDefault()
+      setDropTarget(b.name)
+    },
+    onDragLeave: (e: DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropTarget(null)
+    },
+    onDrop: (e: DragEvent) => {
+      e.preventDefault()
+      if (dragging && dragging !== b.name) actions.merge(id, dragging, b.name)
+      setDragging(null)
+      setDropTarget(null)
+    }
+  })
 
   const localLeaf: RenderLeaf = (b, label, depth) => (
     <SidebarItem
@@ -107,8 +138,9 @@ export function BranchTree({ id }: { id: RepositoryId }) {
       title={b.upstream ? `${b.name} → ${b.upstream}` : b.name}
       indent={depth}
       bold={b.isCurrent}
-      active={isSelected(b)}
+      active={isSelected(b) || dropTarget === b.name}
       right={<Track track={b.track} />}
+      dnd={dropZone(b)}
       onClick={() => select(id, { type: 'commit', hash: b.hash })}
       onDoubleClick={() => !b.isCurrent && void actions.checkout(id, b.name)}
       onContextMenu={(e) => openMenu(e, branchMenu(id, b))}
@@ -124,6 +156,7 @@ export function BranchTree({ id }: { id: RepositoryId }) {
       title={b.name}
       indent={depth}
       active={isSelected(b)}
+      dnd={dragSource(b)}
       onClick={() => select(id, { type: 'commit', hash: b.hash })}
       onDoubleClick={() => void actions.checkoutRemote(id, b.name)}
       onContextMenu={(e) => openMenu(e, branchMenu(id, b))}
