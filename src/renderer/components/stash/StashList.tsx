@@ -5,7 +5,7 @@ import { actions } from '../../stores/git.store'
 import { openMenu, type MenuEntry } from '../../stores/ui.store'
 import { SidebarItem, SidebarSection } from '../repository/SidebarSection'
 
-function stashMenu(id: RepositoryId, stash: GitStash): MenuEntry[] {
+export function stashMenu(id: RepositoryId, stash: GitStash): MenuEntry[] {
   return [
     { label: 'Apply', onClick: () => void actions.stashApply(id, stash.ref) },
     { label: 'Pop', onClick: () => void actions.stashPop(id, stash.ref) },

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Check, Cloud, Laptop, Tag } from 'lucide-react'
 import { branchColor } from '../../utils/colors'
 
@@ -34,24 +35,45 @@ function groupRefs(refs: string[], remotes: string[], currentBranch: string | nu
   return [...groups.values()].sort((a, b) => rank(a) - rank(b))
 }
 
+export function Badge({ color, title, children }: { color: string; title?: string; children: ReactNode }) {
+  return (
+    <span
+      title={title}
+      className="flex min-w-0 items-center gap-1 rounded border px-1.5 py-px text-[11px] font-medium"
+      style={{ color, borderColor: `${color}66`, backgroundColor: `${color}22` }}
+    >
+      {children}
+    </span>
+  )
+}
+
+const TAG_COLOR = '#facc15'
+
+function RefBadge({ group: g }: { group: Group }) {
+  const color = g.tag ? TAG_COLOR : g.name === 'HEAD' && !g.local ? '#fbbf24' : branchColor(g.name)
+  return (
+    <Badge color={color}>
+      {g.current && <Check size={11} className="shrink-0" />}
+      {g.tag && <Tag size={11} className="shrink-0" />}
+      <span className="truncate">{g.name}</span>
+      {g.local && !g.current && <Laptop size={11} className="shrink-0 opacity-70" />}
+      {g.remote && <Cloud size={11} className="shrink-0 opacity-70" />}
+    </Badge>
+  )
+}
+
+/** First branch (or tag) badge, plus the first tag when the commit has both, then "+N" for the rest. */
 export function RefBadges({ refs, remotes, currentBranch }: { refs: string[]; remotes: string[]; currentBranch: string | null }) {
   const groups = groupRefs(refs, remotes, currentBranch)
   if (groups.length === 0) return null
-  const [first, ...rest] = groups
-  const color = first.tag ? '#facc15' : first.name === 'HEAD' && !first.local ? '#fbbf24' : branchColor(first.name)
+  const first = groups[0]
+  const tag = first.tag ? undefined : groups.find((g) => g.tag)
+  const more = groups.length - (tag ? 2 : 1)
   return (
     <div className="flex min-w-0 items-center gap-1" title={refs.filter((r) => r !== 'HEAD').join('\n')}>
-      <span
-        className="flex min-w-0 items-center gap-1 rounded border px-1.5 py-px text-[11px] font-medium"
-        style={{ color, borderColor: `${color}66`, backgroundColor: `${color}22` }}
-      >
-        {first.current && <Check size={11} className="shrink-0" />}
-        {first.tag && <Tag size={11} className="shrink-0" />}
-        <span className="truncate">{first.name}</span>
-        {first.local && !first.current && <Laptop size={11} className="shrink-0 opacity-70" />}
-        {first.remote && <Cloud size={11} className="shrink-0 opacity-70" />}
-      </span>
-      {rest.length > 0 && <span className="shrink-0 text-[10px] text-muted">+{rest.length}</span>}
+      <RefBadge group={first} />
+      {tag && <RefBadge group={tag} />}
+      {more > 0 && <span className="shrink-0 text-[10px] text-muted">+{more}</span>}
     </div>
   )
 }

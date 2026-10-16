@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { GraphNode } from '../../utils/graph'
+import type { GraphNode, GraphRow } from '../../utils/graph'
 
 export const LANE_WIDTH = 22
 const PADDING = 10
@@ -8,8 +8,8 @@ const CORNER = 12
 const laneX = (lane: number): number => PADDING + lane * LANE_WIDTH + LANE_WIDTH / 2
 
 /** Draws one row of the commit graph: its edge segments and the commit node. */
-/** `highlight` (hovered row) thickens the lines touching the node and enlarges it. */
-export function GraphCanvas({ node, width, height, highlight }: { node: GraphNode; width: number; height: number; highlight?: boolean }) {
+/** `highlight` (hovered row) enlarges the node; `kind` draws WIP as a dashed ring and stashes as a hollow square. */
+export function GraphCanvas({ node, width, height, highlight, kind = 'commit' }: { node: GraphNode; width: number; height: number; highlight?: boolean; kind?: GraphRow['kind'] }) {
   const ref = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -47,14 +47,24 @@ export function GraphCanvas({ node, width, height, highlight }: { node: GraphNod
       ctx.stroke()
     }
 
+    const r = (node.isMerge ? 4.5 : 5) + (highlight ? 1.5 : 0)
     ctx.beginPath()
-    ctx.arc(laneX(node.lane), mid, (node.isMerge ? 4.5 : 5) + (highlight ? 1.5 : 0), 0, Math.PI * 2)
-    ctx.fillStyle = node.color
-    ctx.fill()
+    if (kind === 'stash') ctx.rect(laneX(node.lane) - r, mid - r, r * 2, r * 2)
+    else ctx.arc(laneX(node.lane), mid, r, 0, Math.PI * 2)
     ctx.lineWidth = 2
-    ctx.strokeStyle = highlight ? '#ffffff' : '#16191d'
+    if (kind === 'commit') {
+      ctx.fillStyle = node.color
+      ctx.fill()
+      ctx.strokeStyle = highlight ? '#ffffff' : '#16191d'
+    } else {
+      ctx.fillStyle = '#16191d'
+      ctx.fill()
+      if (kind === 'wip') ctx.setLineDash([2, 2])
+      ctx.strokeStyle = node.color
+    }
     ctx.stroke()
-  }, [node, width, height, highlight])
+    ctx.setLineDash([])
+  }, [node, width, height, highlight, kind])
 
   return <canvas ref={ref} className="shrink-0" style={{ width, height }} />
 }

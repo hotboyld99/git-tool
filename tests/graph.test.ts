@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GitCommit } from '../src/shared/types'
-import { computeGraph, flatGraph } from '../src/renderer/utils/graph'
+import { computeGraph, flatGraph, graphRows } from '../src/renderer/utils/graph'
 import { GitService } from '../src/main/services/git.service'
 import { tempRepo } from './helpers'
 
@@ -13,6 +13,23 @@ const c = (hash: string, parents: string[], refs: string[] = []): GitCommit => (
   date: '',
   subject: hash,
   refs
+})
+
+describe('graphRows', () => {
+  const stash = { index: 0, ref: 'stash@{0}', hash: 's', base: 'a', branch: 'main', message: 'saved' }
+
+  it('puts WIP on top of HEAD and a stash above its base, all in the graph', () => {
+    const rows = graphRows([c('b', ['a'], ['HEAD', 'main']), c('a', [])], 'b', 2, [stash])
+    expect(rows.map((r) => r.kind)).toEqual(['wip', 'commit', 'stash', 'commit'])
+    const g = computeGraph(rows.map((r) => r.commit))
+    // WIP continues into HEAD's lane, the stash branches off into its own lane and joins at its base
+    expect(g.nodes.map((n) => n.lane)).toEqual([0, 0, 1, 0])
+  })
+
+  it('skips pseudo rows whose base is not loaded or when clean', () => {
+    expect(graphRows([c('b', ['a'])], 'zzz', 2, [stash]).map((r) => r.kind)).toEqual(['commit'])
+    expect(graphRows([c('b', ['a'])], 'b', 0, []).map((r) => r.kind)).toEqual(['commit'])
+  })
 })
 
 describe('computeGraph', () => {

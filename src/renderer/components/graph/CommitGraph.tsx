@@ -2,25 +2,35 @@ import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { RepositoryId } from '../../../shared/types'
 import { loadMoreHistory, select, useRepo } from '../../stores/repository.store'
-import { computeGraph, flatGraph } from '../../utils/graph'
+import { computeGraph, flatGraph, graphRows, type GraphRow } from '../../utils/graph'
 import { Spinner } from '../common/Spinner'
 import { graphWidth } from './GraphCanvas'
-import { CommitRow, ROW_HEIGHT } from './CommitRow'
+import { CommitRow, ROW_HEIGHT, rowSelection } from './CommitRow'
 import { HistoryFilterBar } from './HistoryFilterBar'
 
 // ponytail: lanes beyond this are clipped; add horizontal graph scrolling if real repos need more
 const MAX_VISIBLE_LANES = 24
 
 export function CommitGraph({ id }: { id: RepositoryId }) {
-  const { commits, remotes, status, selection, loading, hasMoreCommits, historyFilter } = useRepo(id)
+  const { commits, stashes, remotes, status, selection, loading, hasMoreCommits, historyFilter } = useRepo(id)
   const remoteNames = useMemo(() => remotes.map((r) => r.name), [remotes])
   const textFiltered = !!(historyFilter.search.trim() || historyFilter.author.trim())
-  const graph = useMemo(() => (textFiltered ? flatGraph(commits) : computeGraph(commits, remoteNames)), [commits, remoteNames, textFiltered])
+  const head = status?.head ?? ''
+  const changes = status ? status.stagedFiles.length + status.unstagedFiles.length + status.conflictedFiles.length : 0
+  // search results are not a connected history: no WIP / stash rows there
+  const rows = useMemo(
+    () => (textFiltered ? commits.map((commit): GraphRow => ({ kind: 'commit', commit })) : graphRows(commits, head, changes, stashes)),
+    [commits, head, changes, stashes, textFiltered]
+  )
+  const graph = useMemo(() => {
+    const list = rows.map((r) => r.commit)
+    return textFiltered ? flatGraph(list) : computeGraph(list, remoteNames)
+  }, [rows, remoteNames, textFiltered])
   const width = graphWidth(Math.min(graph.width, MAX_VISIBLE_LANES))
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const virtualizer = useVirtualizer({
-    count: commits.length,
+    count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 20
@@ -30,12 +40,17 @@ export function CommitGraph({ id }: { id: RepositoryId }) {
 
   // lazy loading: fetch the next page when the user scrolls near the end
   useEffect(() => {
-    if (hasMoreCommits && lastIndex >= commits.length - 30) void loadMoreHistory(id)
-  }, [id, lastIndex, commits.length, hasMoreCommits])
+    if (hasMoreCommits && lastIndex >= rows.length - 30) void loadMoreHistory(id)
+  }, [id, lastIndex, rows.length, hasMoreCommits])
 
-  const selectedHash = selection.type === 'commit' ? selection.hash : null
   const currentBranch = status?.branch ?? null
-  const selectedIndex = selectedHash ? commits.findIndex((c) => c.hash === selectedHash) : -1
+  const isSelected = (row: GraphRow): boolean => {
+    const s = rowSelection(row)
+    if (s.type === 'commit') return selection.type === 'commit' && selection.hash === s.hash
+    if (s.type === 'stash') return selection.type === 'stash' && selection.ref === s.ref
+    return selection.type === 'changes'
+  }
+  const selectedIndex = rows.findIndex(isSelected)
 
   // bring the selected commit into view (e.g. selected from the sidebar); no-op when already visible
   useEffect(() => {
@@ -44,10 +59,10 @@ export function CommitGraph({ id }: { id: RepositoryId }) {
 
   const onKeyDown = (e: KeyboardEvent): void => {
     const step = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0
-    const next = commits[Math.max(0, selectedIndex + step)]
+    const next = rows[Math.max(0, selectedIndex + step)]
     if (!step || !next) return
     e.preventDefault()
-    select(id, { type: 'commit', hash: next.hash })
+    select(id, rowSelection(next))
   }
 
   return (
@@ -70,16 +85,16 @@ export function CommitGraph({ id }: { id: RepositoryId }) {
         )}
         <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
           {items.map((item) => {
-            const commit = commits[item.index]
+            const row = rows[item.index]
             return (
               <CommitRow
-                key={commit.hash}
+                key={row.commit.hash}
                 repoId={id}
-                commit={commit}
+                row={row}
                 node={graph.nodes[item.index]}
                 graphWidth={width}
                 top={item.start}
-                selected={commit.hash === selectedHash}
+                selected={isSelected(row)}
                 remotes={remoteNames}
                 currentBranch={currentBranch}
               />

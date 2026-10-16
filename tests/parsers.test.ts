@@ -85,10 +85,10 @@ describe('parseLog', () => {
 
 describe('other parsers', () => {
   it('parses stashes', () => {
-    const out = 'stash@{0}\0aaa\0On main: my work\0stash@{1}\0bbb\0WIP on feature/x: 123abc subject\0'
+    const out = 'stash@{0}\0aaa\0p1 i1\0On main: my work\0stash@{1}\0bbb\0p2 i2 u2\0WIP on feature/x: 123abc subject\0'
     expect(parseStashes(out)).toEqual([
-      { index: 0, ref: 'stash@{0}', hash: 'aaa', branch: 'main', message: 'my work' },
-      { index: 1, ref: 'stash@{1}', hash: 'bbb', branch: 'feature/x', message: '123abc subject' }
+      { index: 0, ref: 'stash@{0}', hash: 'aaa', base: 'p1', branch: 'main', message: 'my work' },
+      { index: 1, ref: 'stash@{1}', hash: 'bbb', base: 'p2', branch: 'feature/x', message: '123abc subject' }
     ])
   })
 

@@ -109,6 +109,8 @@ export interface GitStash {
   /** stash@{n} */
   ref: string
   hash: string
+  /** commit the stash was made on (its first parent) */
+  base: string
   branch: string
   message: string
 }

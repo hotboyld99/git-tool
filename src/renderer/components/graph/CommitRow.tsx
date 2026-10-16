@@ -1,18 +1,20 @@
 import { memo, useState } from 'react'
+import { Archive, Pencil } from 'lucide-react'
 import type { GitCommit, RepositoryId } from '../../../shared/types'
-import { getRepo, select } from '../../stores/repository.store'
+import { getRepo, select, type Selection } from '../../stores/repository.store'
 import { actions } from '../../stores/git.store'
 import { openDialog, openMenu, type MenuEntry } from '../../stores/ui.store'
-import type { GraphNode } from '../../utils/graph'
+import type { GraphNode, GraphRow } from '../../utils/graph'
 import { formatDate } from '../../utils/format'
+import { stashMenu } from '../stash/StashList'
 import { GraphCanvas } from './GraphCanvas'
-import { RefBadges } from './RefBadges'
+import { Badge, RefBadges } from './RefBadges'
 
 export const ROW_HEIGHT = 36
 
 interface Props {
   repoId: RepositoryId
-  commit: GitCommit
+  row: GraphRow
   node: GraphNode
   graphWidth: number
   top: number
@@ -51,9 +53,16 @@ function commitMenu(repoId: RepositoryId, commit: GitCommit): MenuEntry[] {
   ]
 }
 
-export const CommitRow = memo(function CommitRow({ repoId, commit, node, graphWidth, top, selected, remotes, currentBranch }: Props) {
+export const rowSelection = (row: GraphRow): Selection =>
+  row.kind === 'wip' ? { type: 'changes' } : row.kind === 'stash' ? { type: 'stash', ref: row.stash.ref, hash: row.stash.hash } : { type: 'commit', hash: row.commit.hash }
+
+const WIP_COLOR = '#94a3b8'
+
+export const CommitRow = memo(function CommitRow({ repoId, row, node, graphWidth, top, selected, remotes, currentBranch }: Props) {
   const [hovered, setHovered] = useState(false)
-  const show = (): void => select(repoId, { type: 'commit', hash: commit.hash })
+  const { commit } = row
+  const show = (): void => select(repoId, rowSelection(row))
+  const menu = row.kind === 'commit' ? commitMenu(repoId, commit) : row.kind === 'stash' ? stashMenu(repoId, row.stash) : null
   return (
     <div
       className={`absolute right-0 left-0 flex items-center ${selected ? 'bg-accent/25' : 'hover:bg-hover'}`}
@@ -64,14 +73,28 @@ export const CommitRow = memo(function CommitRow({ repoId, commit, node, graphWi
       onMouseLeave={() => setHovered(false)}
       onContextMenu={(e) => {
         show()
-        openMenu(e, commitMenu(repoId, commit))
+        if (menu) openMenu(e, menu)
       }}
     >
-      <div className="w-44 shrink-0 overflow-hidden px-2">
-        <RefBadges refs={commit.refs} remotes={remotes} currentBranch={currentBranch} />
+      <div className="flex w-44 shrink-0 overflow-hidden px-2">
+        {row.kind === 'commit' && <RefBadges refs={commit.refs} remotes={remotes} currentBranch={currentBranch} />}
+        {row.kind === 'wip' && (
+          <Badge color={WIP_COLOR}>
+            <Pencil size={11} className="shrink-0" />
+            WIP
+          </Badge>
+        )}
+        {row.kind === 'stash' && (
+          <Badge color={node.color} title={`${row.stash.ref} on ${row.stash.branch}`}>
+            <Archive size={11} className="shrink-0" />
+            <span className="truncate">{row.stash.ref}</span>
+          </Badge>
+        )}
       </div>
-      <GraphCanvas node={node} width={graphWidth} height={ROW_HEIGHT} highlight={hovered || selected} />
-      <div className={`min-w-0 flex-1 truncate pl-3 text-[13px] ${node.isMerge ? 'text-muted' : ''}`}>{commit.subject}</div>
+      <GraphCanvas node={node} width={graphWidth} height={ROW_HEIGHT} highlight={hovered || selected} kind={row.kind} />
+      <div className={`min-w-0 flex-1 truncate pl-3 text-[13px] ${node.isMerge ? 'text-muted' : ''} ${row.kind === 'commit' ? '' : 'text-muted italic'}`}>
+        {commit.subject}
+      </div>
       <div className="w-36 shrink-0 truncate px-2 text-muted">{commit.authorName}</div>
       <div className="w-32 shrink-0 px-2 font-mono text-[11px] text-muted">{formatDate(commit.date)}</div>
     </div>

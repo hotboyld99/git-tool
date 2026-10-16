@@ -1,4 +1,4 @@
-import type { GitCommit } from '../../shared/types'
+import type { GitCommit, GitStash } from '../../shared/types'
 import { PALETTE, branchColor } from './colors'
 
 /**
@@ -104,4 +104,35 @@ export function flatGraph(commits: GitCommit[]): Graph {
     nodes: commits.map((c) => ({ commitHash: c.hash, lane: 0, color: PALETTE[0], isMerge: c.parents.length > 1, edges: [] })),
     width: 1
   }
+}
+
+export type GraphRow = { kind: 'commit'; commit: GitCommit } | { kind: 'wip'; commit: GitCommit } | { kind: 'stash'; commit: GitCommit; stash: GitStash }
+
+export const WIP_HASH = 'WIP'
+
+/**
+ * Commit rows plus pseudo rows drawn in the graph: uncommitted changes ("WIP") on top, pointing at HEAD,
+ * and every stash right above the commit it was made on. Pseudo rows whose base commit is not loaded are left out.
+ * Pseudo commits copy their base's refs so their lane gets the branch color (their own badges are drawn separately).
+ */
+/** `changes`: number of uncommitted files (0 = no WIP row) */
+export function graphRows(commits: GitCommit[], head: string, changes: number, stashes: GitStash[]): GraphRow[] {
+  const pseudo = (hash: string, base: GitCommit, subject: string): GitCommit => ({
+    hash,
+    shortHash: '',
+    parents: [base.hash],
+    authorName: '',
+    authorEmail: '',
+    date: '',
+    subject,
+    refs: base.refs.filter((r) => r !== 'HEAD')
+  })
+  const rows: GraphRow[] = []
+  const headCommit = changes ? commits.find((c) => c.hash === head) : undefined
+  if (headCommit) rows.push({ kind: 'wip', commit: pseudo(WIP_HASH, headCommit, `${changes} uncommitted ${changes === 1 ? 'change' : 'changes'}`) })
+  for (const commit of commits) {
+    for (const stash of stashes) if (stash.base === commit.hash) rows.push({ kind: 'stash', stash, commit: pseudo(stash.hash, commit, stash.message) })
+    rows.push({ kind: 'commit', commit })
+  }
+  return rows
 }
