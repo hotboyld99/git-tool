@@ -30,7 +30,12 @@ function branchMenu(id: RepositoryId, branch: Branch): MenuEntry[] {
     'separator',
     { label: 'Copy Branch Name', onClick: () => void navigator.clipboard.writeText(branch.name) }
   ]
-  if (!branch.isRemote) entries.push('separator', { label: 'Delete Branch…', danger: true, disabled: branch.isCurrent, onClick: () => actions.deleteBranch(id, branch.name) })
+  if (!branch.isRemote)
+    entries.push(
+      'separator',
+      { label: 'Rename Branch…', onClick: () => openDialog({ type: 'renameBranch', repoId: id, name: branch.name }) },
+      { label: 'Delete Branch…', danger: true, disabled: branch.isCurrent, onClick: () => actions.deleteBranch(id, branch.name) }
+    )
   return entries
 }
 

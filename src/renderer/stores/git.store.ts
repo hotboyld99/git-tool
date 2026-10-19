@@ -174,6 +174,9 @@ export const actions = {
       refresh: ['worktree', 'refs', 'history']
     }),
 
+  renameBranch: (id: RepositoryId, name: string, newName: string) =>
+    run(id, `Rename branch ${name} to ${newName}`, () => window.git.renameBranch(id, name, newName), { refresh: ['worktree', 'refs', 'history'] }),
+
   deleteBranch(id: RepositoryId, name: string): void {
     const remove = (force: boolean) =>
       run(id, `Delete branch ${name}`, () => window.git.deleteBranch(id, name, force), { refresh: ['refs', 'history'], showError: false })

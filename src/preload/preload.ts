@@ -34,6 +34,7 @@ const git: GitApi = {
   checkoutRemote: invoke('git:checkoutRemote'),
   checkoutCommit: invoke('git:checkoutCommit'),
   createBranch: invoke('git:createBranch'),
+  renameBranch: invoke('git:renameBranch'),
   deleteBranch: invoke('git:deleteBranch'),
   merge: invoke('git:merge'),
   rebase: invoke('git:rebase'),
@@ -85,6 +86,7 @@ const repo: RepoApi = {
   init: invoke('repo:init'),
   close: invoke('repo:close'),
   setActive: invoke('repo:setActive'),
+  setOrder: invoke('repo:setOrder'),
   session: invoke('repo:session'),
   onChanged: (listener) => subscribe<RepoChangedEvent>('repo:changed', listener)
 }

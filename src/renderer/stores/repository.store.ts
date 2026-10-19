@@ -288,6 +288,18 @@ export async function initRepository(path: string): Promise<boolean> {
   return true
 }
 
+/** Moves tab `id` to where tab `target` is (after it when moving right, before it when moving left). */
+export function moveTab(id: RepositoryId, target: RepositoryId): void {
+  const { order } = useRepos.getState()
+  const from = order.indexOf(id)
+  const to = order.indexOf(target)
+  if (from === -1 || to === -1 || from === to) return
+  const next = order.filter((x) => x !== id)
+  next.splice(to, 0, id)
+  useRepos.setState({ order: next })
+  void window.repo.setOrder(next)
+}
+
 export async function closeRepository(id: RepositoryId): Promise<void> {
   await window.repo.close(id)
   const { order, activeId } = useRepos.getState()

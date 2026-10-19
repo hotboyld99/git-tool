@@ -258,6 +258,7 @@ export interface GitApi {
   checkoutRemote(id: RepositoryId, remoteBranch: string): Promise<Result<void>>
   checkoutCommit(id: RepositoryId, hash: string): Promise<Result<void>>
   createBranch(id: RepositoryId, name: string, startPoint: string | null, checkout: boolean): Promise<Result<void>>
+  renameBranch(id: RepositoryId, name: string, newName: string): Promise<Result<void>>
   deleteBranch(id: RepositoryId, name: string, force: boolean): Promise<Result<void>>
   merge(id: RepositoryId, branch: string): Promise<Result<void>>
   rebase(id: RepositoryId, onto: string): Promise<Result<void>>
@@ -316,6 +317,8 @@ export interface RepoApi {
   init(path: string): Promise<Result<RepositoryInfo>>
   close(id: RepositoryId): Promise<Result<void>>
   setActive(id: RepositoryId | null): Promise<Result<void>>
+  /** tab order, remembered for the next session */
+  setOrder(ids: RepositoryId[]): Promise<Result<void>>
   session(): Promise<Result<Session>>
   onChanged(listener: (event: RepoChangedEvent) => void): () => void
 }

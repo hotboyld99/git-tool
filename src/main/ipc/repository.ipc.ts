@@ -6,7 +6,7 @@ import { runGit } from '../git/executor'
 import { RepositoryService } from '../services/repository.service'
 import { settings } from '../services/settings.service'
 import { watchRepository } from '../services/filesystem.service'
-import { handle, str } from './handle'
+import { handle, str, strs } from './handle'
 
 export function registerRepositoryIpc(
   repos: RepositoryService,
@@ -65,6 +65,11 @@ export function registerRepositoryIpc(
     watchers.get(repo.id)?.()
     watchers.delete(repo.id)
     repos.unregister(repo.id)
+    persistOpened()
+  })
+
+  handle('repo:setOrder', (ids) => {
+    repos.reorder(strs(ids))
     persistOpened()
   })
 

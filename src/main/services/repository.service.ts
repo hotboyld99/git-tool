@@ -38,6 +38,13 @@ export class RepositoryService {
     return this.repos.has(id)
   }
 
+  /** Tab order: listed ids first in that order, unknown ids ignored, unlisted repositories keep their place at the end. */
+  reorder(ids: RepositoryId[]): void {
+    const listed = ids.filter((id) => this.repos.has(id))
+    const rest = [...this.repos.keys()].filter((id) => !listed.includes(id))
+    this.repos = new Map([...listed, ...rest].map((id) => [id, this.get(id)]))
+  }
+
   list(): RepositoryInfo[] {
     return [...this.repos.values()]
   }

@@ -84,6 +84,15 @@ describe('GitService (real repositories)', () => {
     await expect(git.createBranch(repo.dir, 'bad..name', null, false)).rejects.toThrow()
   })
 
+  it('renames branches, including the current one', async () => {
+    const repo = tempRepo()
+    repo.commit('a.txt', 'a', 'init')
+    await git.renameBranch(repo.dir, 'main', 'trunk')
+    expect((await git.status(repo.dir)).branch).toBe('trunk')
+    await expect(git.renameBranch(repo.dir, 'trunk', 'bad..name')).rejects.toThrow()
+    expect((await git.getBranches(repo.dir)).map((b) => b.name)).toEqual(['trunk'])
+  })
+
   it('merges with conflicts and reports conflicted files', async () => {
     const repo = tempRepo()
     repo.commit('a.txt', 'base\n', 'init')

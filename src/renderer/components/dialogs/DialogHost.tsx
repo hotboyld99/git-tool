@@ -1,6 +1,7 @@
 import { useUi } from '../../stores/ui.store'
 import { ConfirmationDialog } from './ConfirmationDialog'
 import { CreateBranchDialog } from './CreateBranchDialog'
+import { RenameBranchDialog } from './RenameBranchDialog'
 import { StashDialog } from './StashDialog'
 import { CreateTagDialog } from './CreateTagDialog'
 import { ResetDialog } from './ResetDialog'
@@ -18,6 +19,8 @@ export function DialogHost() {
       return <ConfirmationDialog dialog={dialog} />
     case 'createBranch':
       return <CreateBranchDialog dialog={dialog} />
+    case 'renameBranch':
+      return <RenameBranchDialog dialog={dialog} />
     case 'stash':
       return <StashDialog dialog={dialog} />
     case 'createTag':

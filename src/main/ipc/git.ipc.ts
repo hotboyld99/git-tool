@@ -60,6 +60,7 @@ export function registerGitIpc(
   handle('git:createBranch', (id, name, start, checkout) =>
     git.createBranch(path(id), str(name), start === null ? null : str(start), bool(checkout))
   )
+  handle('git:renameBranch', (id, name, newName) => git.renameBranch(path(id), str(name), str(newName)))
   handle('git:deleteBranch', (id, name, force) => git.deleteBranch(path(id), str(name), bool(force)))
   handle('git:merge', (id, branch) => git.merge(path(id), str(branch)))
   handle('git:rebase', (id, onto) => git.rebase(path(id), str(onto)))

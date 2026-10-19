@@ -249,6 +249,12 @@ export class GitService {
   }
 
   /** Without `force` Git refuses to delete unmerged branches; the UI then asks before forcing. */
+  /** `git branch -m` also moves the branch's upstream config and keeps HEAD on it when it is checked out */
+  async renameBranch(repo: string, name: string, newName: string): Promise<void> {
+    await runGit(repo, ['check-ref-format', '--branch', assertRef(newName)])
+    await runGit(repo, ['branch', '-m', assertRef(name), newName])
+  }
+
   async deleteBranch(repo: string, name: string, force: boolean): Promise<void> {
     await runGit(repo, ['branch', force ? '-D' : '-d', assertRef(name)])
   }
