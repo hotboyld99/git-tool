@@ -5,7 +5,7 @@ export const LANE_WIDTH = 22
 const PADDING = 10
 /** corner radius where a line turns between lanes: small = squarer bends */
 const CORNER = 12
-const laneX = (lane: number): number => PADDING + lane * LANE_WIDTH + LANE_WIDTH / 2
+export const laneX = (lane: number): number => PADDING + lane * LANE_WIDTH + LANE_WIDTH / 2
 
 /** Draws one row of the commit graph: its edge segments and the commit node. */
 /** `highlight` (hovered row) enlarges the node; `kind` draws WIP as a dashed ring and stashes as a hollow square. */
@@ -47,21 +47,17 @@ export function GraphCanvas({ node, width, height, highlight, kind = 'commit' }:
       ctx.stroke()
     }
 
-    const r = (node.isMerge ? 4.5 : 5) + (highlight ? 1.5 : 0)
+    // regular commits show the author avatar on top of the canvas instead (see CommitRow); merges keep a small dot
+    if (kind === 'commit' && !node.isMerge) return
+    const r = (node.isMerge ? 4 : 5) + (highlight ? 1.5 : 2)
     ctx.beginPath()
     if (kind === 'stash') ctx.rect(laneX(node.lane) - r, mid - r, r * 2, r * 2)
     else ctx.arc(laneX(node.lane), mid, r, 0, Math.PI * 2)
     ctx.lineWidth = 2
-    if (kind === 'commit') {
-      ctx.fillStyle = node.color
-      ctx.fill()
-      ctx.strokeStyle = highlight ? '#ffffff' : '#16191d'
-    } else {
-      ctx.fillStyle = '#16191d'
-      ctx.fill()
-      if (kind === 'wip') ctx.setLineDash([2, 2])
-      ctx.strokeStyle = node.color
-    }
+    ctx.fillStyle = kind === 'commit' ? node.color : '#16191d'
+    ctx.fill()
+    if (kind === 'wip') ctx.setLineDash([2, 2])
+    ctx.strokeStyle = kind === 'commit' ? (highlight ? '#ffffff' : '#16191d') : node.color
     ctx.stroke()
     ctx.setLineDash([])
   }, [node, width, height, highlight, kind])

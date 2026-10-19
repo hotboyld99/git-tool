@@ -8,7 +8,12 @@ export function branchColor(name: string): string {
   if (/^feat(ure)?[/-]/.test(name)) return '#a77bf3'
   if (/^(fix|bugfix|hotfix|fixbug)/.test(name)) return '#f472b6'
   if (/^release/.test(name)) return '#fb923c'
+  return hashColor(name)
+}
+
+/** Stable palette color for any string (e.g. an author email). */
+export function hashColor(text: string): string {
   let hash = 0
-  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) | 0
+  for (const ch of text) hash = (hash * 31 + ch.charCodeAt(0)) | 0
   return PALETTE[Math.abs(hash) % PALETTE.length]
 }

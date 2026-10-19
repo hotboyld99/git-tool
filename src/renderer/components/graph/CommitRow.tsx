@@ -7,10 +7,12 @@ import { openDialog, openMenu, type MenuEntry } from '../../stores/ui.store'
 import type { GraphNode, GraphRow } from '../../utils/graph'
 import { formatDate } from '../../utils/format'
 import { stashMenu } from '../stash/StashList'
-import { GraphCanvas } from './GraphCanvas'
+import { Avatar } from './Avatar'
+import { GraphCanvas, laneX } from './GraphCanvas'
 import { Badge, RefBadges } from './RefBadges'
 
 export const ROW_HEIGHT = 36
+const AVATAR_SIZE = 20
 
 interface Props {
   repoId: RepositoryId
@@ -91,7 +93,14 @@ export const CommitRow = memo(function CommitRow({ repoId, row, node, graphWidth
           </Badge>
         )}
       </div>
-      <GraphCanvas node={node} width={graphWidth} height={ROW_HEIGHT} highlight={hovered || selected} kind={row.kind} />
+      <div className="relative shrink-0">
+        <GraphCanvas node={node} width={graphWidth} height={ROW_HEIGHT} highlight={hovered || selected} kind={row.kind} />
+        {row.kind === 'commit' && !node.isMerge && (
+          <div className="absolute" style={{ left: laneX(node.lane) - AVATAR_SIZE / 2, top: (ROW_HEIGHT - AVATAR_SIZE) / 2 }}>
+            <Avatar name={commit.authorName} email={commit.authorEmail} size={AVATAR_SIZE} ring={node.color} highlight={hovered || selected} />
+          </div>
+        )}
+      </div>
       <div className={`min-w-0 flex-1 truncate pl-3 text-[13px] ${node.isMerge ? 'text-muted' : ''} ${row.kind === 'commit' ? '' : 'text-muted italic'}`}>
         {commit.subject}
       </div>
