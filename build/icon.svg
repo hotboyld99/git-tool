@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#232a35"/>
+      <stop offset="1" stop-color="#11151b"/>
+    </linearGradient>
+  </defs>
+  <!-- macOS icon grid: 824px body, 100px margin -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="102" y="102" width="820" height="820" rx="183" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="4"/>
+  <g fill="none" stroke-width="44" stroke-linecap="round" stroke-linejoin="round">
+    <!-- branch: forks right from the bottom commit, rises, merges back into the top commit -->
+    <path d="M400 724 H574 A50 50 0 0 0 624 674 V350 A50 50 0 0 0 574 300 H400" stroke="#a77bf3"/>
+    <path d="M400 300 V724" stroke="#4c9aff"/>
+  </g>
+  <g stroke="#151a21" stroke-width="20">
+    <circle cx="400" cy="724" r="62" fill="#4c9aff"/>
+    <circle cx="400" cy="512" r="62" fill="#4c9aff"/>
+    <circle cx="624" cy="512" r="62" fill="#a77bf3"/>
+  </g>
+  <!-- HEAD: the merge commit, with a light ring -->
+  <circle cx="400" cy="300" r="66" fill="#4c9aff" stroke="#e6edf3" stroke-width="20"/>
+</svg>
