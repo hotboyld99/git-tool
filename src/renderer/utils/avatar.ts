@@ -26,7 +26,7 @@ export function avatarUrl(email: string): Promise<string> {
       ? Promise.resolve(github)
       : crypto.subtle.digest('SHA-256', new TextEncoder().encode(key)).then((buf) => {
           const hex = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
-          return `https://gravatar.com/avatar/${hex}?s=64&d=404`
+          return `https://gravatar.com/avatar/${hex}?s=64&d=retro`
         })
     urls.set(key, url)
   }

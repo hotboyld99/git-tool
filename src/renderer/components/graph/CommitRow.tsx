@@ -97,7 +97,7 @@ export const CommitRow = memo(function CommitRow({ repoId, row, node, graphWidth
         <GraphCanvas node={node} width={graphWidth} height={ROW_HEIGHT} highlight={hovered || selected} kind={row.kind} />
         {row.kind === 'commit' && !node.isMerge && (
           <div className="absolute" style={{ left: laneX(node.lane) - AVATAR_SIZE / 2, top: (ROW_HEIGHT - AVATAR_SIZE) / 2 }}>
-            <Avatar name={commit.authorName} email={commit.authorEmail} size={AVATAR_SIZE} ring={node.color} highlight={hovered || selected} />
+            <Avatar name={commit.authorName} email={commit.authorEmail} size={AVATAR_SIZE} ring={node.color} />
           </div>
         )}
       </div>

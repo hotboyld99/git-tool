@@ -8,11 +8,10 @@ interface Props {
   size: number
   /** ring color (the commit's lane) */
   ring: string
-  highlight?: boolean
 }
 
 /** Author picture in a ring; colored initials underneath show until it loads, or for good when there is none. */
-export function Avatar({ name, email, size, ring, highlight }: Props) {
+export function Avatar({ name, email, size, ring }: Props) {
   const [url, setUrl] = useState<string | null>(null)
   const [broken, setBroken] = useState(false)
 
@@ -33,7 +32,7 @@ export function Avatar({ name, email, size, ring, highlight }: Props) {
         height: size,
         fontSize: size * 0.4,
         backgroundColor: hashColor(email.toLowerCase()),
-        boxShadow: `0 0 0 2px ${highlight ? '#ffffff' : ring}`
+        boxShadow: `0 0 0 2px ${ring}`
       }}
     >
       {initials(name)}
