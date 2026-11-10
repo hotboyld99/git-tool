@@ -17,7 +17,7 @@ interface Props<F extends ChangedFile> {
   headerAction?: ReactNode
   actions?: RowAction<F>[]
   isSelected: (file: F) => boolean
-  onSelect: (file: F) => void
+  onSelect: (file: F, e: MouseEvent) => void
   onOpen?: (file: F) => void
   onContextMenu?: (e: MouseEvent, file: F) => void
 }
@@ -37,7 +37,7 @@ export function FileChangeList<F extends ChangedFile>({ title, files, tone, head
           <div
             key={file.path}
             title={file.originalPath ? `${file.originalPath} → ${file.path}` : file.path}
-            onClick={() => onSelect(file)}
+            onClick={(e) => onSelect(file, e)}
             onDoubleClick={() => onOpen?.(file)}
             onContextMenu={(e) => onContextMenu?.(e, file)}
             className={`group flex h-6 items-center gap-2 px-3 ${isSelected(file) ? 'bg-accent/25' : 'hover:bg-hover'}`}

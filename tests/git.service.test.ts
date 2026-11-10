@@ -93,6 +93,16 @@ describe('GitService (real repositories)', () => {
     expect((await git.getBranches(repo.dir)).map((b) => b.name)).toEqual(['trunk'])
   })
 
+  it('always creates a merge commit, even when a fast-forward is possible', async () => {
+    const repo = tempRepo()
+    repo.commit('a.txt', 'a', 'init')
+    repo.git('switch', '-q', '-c', 'feature')
+    repo.commit('b.txt', 'b', 'on feature')
+    repo.git('switch', '-q', 'main')
+    await git.merge(repo.dir, 'feature')
+    expect(repo.git('log', '-1', '--format=%P').trim().split(' ')).toHaveLength(2)
+  })
+
   it('merges with conflicts and reports conflicted files', async () => {
     const repo = tempRepo()
     repo.commit('a.txt', 'base\n', 'init')

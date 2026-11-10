@@ -12,5 +12,5 @@
     "isolatedModules": true,
     "composite": true
   },
-  "include": ["electron.vite.config.ts", "vitest.config.ts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "src/renderer/utils/graph.ts", "src/renderer/utils/colors.ts", "src/renderer/utils/diff.ts", "src/renderer/utils/format.ts", "src/renderer/utils/branchTree.ts", "src/renderer/utils/workspace.ts", "src/renderer/utils/avatar.ts", "tests/**/*"]
+  "include": ["electron.vite.config.ts", "vitest.config.ts", "src/main/**/*", "src/preload/**/*", "src/shared/**/*", "src/renderer/utils/graph.ts", "src/renderer/utils/colors.ts", "src/renderer/utils/diff.ts", "src/renderer/utils/format.ts", "src/renderer/utils/branchTree.ts", "src/renderer/utils/workspace.ts", "src/renderer/utils/avatar.ts", "src/renderer/utils/pick.ts", "tests/**/*"]
 }

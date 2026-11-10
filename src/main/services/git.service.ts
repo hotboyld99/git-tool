@@ -259,8 +259,9 @@ export class GitService {
     await runGit(repo, ['branch', force ? '-D' : '-d', assertRef(name)])
   }
 
+  /** always records a merge commit (--no-ff), even when the branch could be fast-forwarded */
   async merge(repo: string, branch: string): Promise<void> {
-    await runGit(repo, ['merge', '--no-edit', assertRef(branch)], { timeout: 0 })
+    await runGit(repo, ['merge', '--no-ff', '--no-edit', assertRef(branch)], { timeout: 0 })
   }
 
   /** Rebases the current branch onto `onto`; conflicts stop it (status.operation = 'rebase'). */

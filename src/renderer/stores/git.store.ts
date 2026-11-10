@@ -106,23 +106,27 @@ export const actions = {
 
   unstageAll: (id: RepositoryId) => run(id, 'Unstage all', () => window.git.unstageAll(id), { refresh: ['worktree'] }),
 
-  discard(id: RepositoryId, file: GitFileStatus): void {
-    if (file.status === 'untracked') {
-      confirm({
-        title: 'Delete untracked file?',
-        message: `"${file.path}" is not tracked by Git. It will be permanently deleted from disk and cannot be recovered.`,
-        confirmLabel: 'Delete File',
-        danger: true,
-        onConfirm: () => void run(id, `Delete ${file.path}`, () => window.git.deleteUntracked(id, [file.path]), { refresh: ['worktree'] })
-      })
-      return
-    }
+  /** Discards unstaged changes of tracked files and deletes untracked ones, after one confirmation. */
+  discard(id: RepositoryId, files: GitFileStatus[]): void {
+    const untracked = files.filter((f) => f.status === 'untracked').map((f) => f.path)
+    const tracked = files.filter((f) => f.status !== 'untracked').map((f) => f.path)
+    const name = (paths: string[]): string => (paths.length === 1 ? `"${paths[0]}"` : `${paths.length} files`)
+    if (files.length === 0) return
     confirm({
-      title: 'Discard changes?',
-      message: `All unstaged changes in "${file.path}" will be lost. This cannot be undone.`,
-      confirmLabel: 'Discard Changes',
+      title: tracked.length ? 'Discard changes?' : `Delete untracked ${untracked.length === 1 ? 'file' : 'files'}?`,
+      message: [
+        tracked.length > 0 && `All unstaged changes in ${name(tracked)} will be lost.`,
+        untracked.length > 0 && `${name(untracked)} not tracked by Git will be permanently deleted from disk.`,
+        'This cannot be undone.'
+      ]
+        .filter(Boolean)
+        .join(' '),
+      confirmLabel: tracked.length ? 'Discard Changes' : 'Delete',
       danger: true,
-      onConfirm: () => void run(id, `Discard ${file.path}`, () => window.git.discard(id, [file.path]), { refresh: ['worktree'] })
+      onConfirm: async () => {
+        if (tracked.length) await run(id, `Discard ${describe(tracked)}`, () => window.git.discard(id, tracked), { refresh: ['worktree'] })
+        if (untracked.length) await run(id, `Delete ${describe(untracked)}`, () => window.git.deleteUntracked(id, untracked), { refresh: ['worktree'] })
+      }
     })
   },
 
